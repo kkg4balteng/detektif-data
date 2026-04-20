@@ -1,0 +1,2292 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <base target="_top">
+    <title>Detektif Data Nusantara: Misi Matematika</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Custom Styles -->
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            font-family: 'Fredoka', sans-serif;
+            background-color: #fef3c7; /* Warm amber background for detective theme */
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.5); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.2); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.4); }
+        
+        @media (min-width: 1280px) {
+            .custom-scrollbar::-webkit-scrollbar { width: 12px; }
+        }
+        
+        @keyframes bounce-slow {
+            0%, 100% { transform: translateY(-2%); }
+            50% { transform: translateY(2%); }
+        }
+        .animate-bounce-slow { animation: bounce-slow 3s infinite ease-in-out; }
+        
+        @keyframes fade-in {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in { animation: fade-in 0.5s ease-out forwards; }
+
+        @keyframes pop-in {
+            0% { transform: scale(0); opacity: 0; }
+            80% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-pop-in { animation: pop-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+        .text-outline { text-shadow: 2px 2px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; }
+    </style>
+</head>
+<body>
+    <div id="root" class="h-full w-full"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useMemo } = React;
+
+        // URL Google Script untuk menyimpan data (Bisa disesuaikan oleh guru)
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyHeIBrL9ZT7nfVE0TZDdmkFoVrvjy-8FWM8Ej-iCwFey3bIj1GWAWxhfUMr2bqTyZs/exec"; 
+
+        // --- WEB AUDIO API (SOUND EFFECTS) ---
+        let audioCtx = null;
+        const playSfx = (type) => {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return; 
+
+                if (!audioCtx) {
+                    audioCtx = new AudioContext();
+                }
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                
+                if (type === 'correct') {
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(523.25, audioCtx.currentTime); 
+                    oscillator.frequency.exponentialRampToValueAtTime(1046.50, audioCtx.currentTime + 0.1); 
+                    gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                    oscillator.start(audioCtx.currentTime);
+                    oscillator.stop(audioCtx.currentTime + 0.3);
+                } else if (type === 'incorrect') {
+                    oscillator.type = 'sawtooth';
+                    oscillator.frequency.setValueAtTime(150, audioCtx.currentTime); 
+                    oscillator.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.2); 
+                    gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                    oscillator.start(audioCtx.currentTime);
+                    oscillator.stop(audioCtx.currentTime + 0.2);
+                } else if (type === 'click') {
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(400, audioCtx.currentTime); 
+                    oscillator.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 0.05); 
+                    gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+                    oscillator.start(audioCtx.currentTime);
+                    oscillator.stop(audioCtx.currentTime + 0.05);
+                }
+            } catch (err) {
+                console.warn("Efek suara tidak didukung.", err);
+            }
+        };
+
+        document.addEventListener('click', (e) => {
+            const isClickable = e.target.closest('button, select, [draggable="true"], .cursor-pointer');
+            if (isClickable) playSfx('click');
+        });
+
+        // --- HELPER RANDOMIZER ---
+        const shuffleArray = (array) => {
+            const newArr = [...array];
+            for (let i = newArr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+            }
+            return newArr;
+        };
+
+        // --- ICONS ---
+        const Icon = ({ path, className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>{path}</svg>
+        );
+
+        const Icons = {
+            Map: ({className}) => <Icon className={className} path={<><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon><line x1="8" y1="2" x2="8" y2="18"></line><line x1="16" y1="6" x2="16" y2="22"></line></>} />,
+            Star: ({className}) => <Icon className={className} path={<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>} />,
+            Users: ({className}) => <Icon className={className} path={<><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></>} />,
+            User: ({className}) => <Icon className={className} path={<><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></>} />,
+            School: ({className}) => <Icon className={className} path={<><path d="M4 6h16"></path><path d="M4 6v14"></path><path d="M20 6v14"></path><path d="M12 22V10"></path><path d="M4 10h16"></path><path d="M4 14h16"></path><path d="M4 18h16"></path><path d="M12 2l-8 4h16z"></path></>} />,
+            ArrowRight: ({className}) => <Icon className={className} path={<><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></>} />,
+            Award: ({className}) => <Icon className={className} path={<><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></>} />,
+            BookOpen: ({className}) => <Icon className={className} path={<><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></>} />,
+            CheckCircle: ({className}) => <Icon className={className} path={<><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></>} />,
+            Menu: ({className}) => <Icon className={className} path={<><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></>} />,
+            X: ({className}) => <Icon className={className} path={<><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></>} />,
+            Maximize: ({className}) => <Icon className={className} path={<><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></>} />,
+            Minimize: ({className}) => <Icon className={className} path={<><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path></>} />,
+            RefreshCcw: ({className}) => <Icon className={className} path={<><polyline points="1 23 1 17 7 17"></polyline><polyline points="23 1 23 7 17 7"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></>} />,
+            Home: ({className}) => <Icon className={className} path={<><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></>} />,
+            Lock: ({className}) => <Icon className={className} path={<><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></>} />,
+            Save: ({className}) => <Icon className={className} path={<><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></>} />,
+            Volume2: ({className}) => <Icon className={className} path={<><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.75"></path></>} />,
+            VolumeX: ({className}) => <Icon className={className} path={<><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></>} />,
+            BarChart: ({className}) => <Icon className={className} path={<><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></>} />,
+            Search: ({className}) => <Icon className={className} path={<><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></>} />
+        };
+
+        // --- DATA & KONSTANTA GAMBAR / AUDIO ---
+        const LOGO_IMAGE_URL = "https://i.imgur.com/RShtU0L.png";
+        const BG_INTRO = "https://i.imgur.com/Fgr0hEW.png";
+        const BG_MAP = "https://i.imgur.com/YA3PPtk.png";
+        const BG_L1 = "https://i.imgur.com/nnJxP4L.png";
+        const BG_L2 = "https://i.imgur.com/k2rdBog.png";
+        const BG_L3 = "https://i.imgur.com/UOaKCSu.png";
+        const BG_L4 = "https://i.imgur.com/BCzjdUD.png";
+        const BG_L5 = "https://i.imgur.com/rTRVPPM.png";
+        const BACKSONG_URL = "https://raw.githubusercontent.com/kkg4balteng/lagudata/main/Detektif%20Data%20Nusantara.mp3"; 
+
+        const getBackgroundStyle = (view) => {
+            let bgUrl = BG_INTRO;
+            if (view === 'level1') bgUrl = BG_L1;
+            if (view === 'level2') bgUrl = BG_L2;
+            if (view === 'level3') bgUrl = BG_L3;
+            if (view === 'level4') bgUrl = BG_L4;
+            if (view === 'level5') bgUrl = BG_L5;
+            if (view === 'intro' || view === 'tujuan_panduan' || view === 'materi' || view === 'end' || view === 'map') bgUrl = BG_INTRO;
+            
+            return { 
+                backgroundImage: `url(${bgUrl})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundAttachment: 'fixed',
+                backgroundColor: '#fef3c7'
+            };
+        };
+
+        const MAP_POSITIONS = [
+            { level: 1, top: '35%', left: '20%' }, 
+            { level: 2, top: '65%', left: '35%' }, 
+            { level: 3, top: '40%', left: '45%' }, 
+            { level: 4, top: '48%', left: '58%' }, 
+            { level: 5, top: '50%', left: '85%' }, 
+        ];
+
+        // --- KONTEN MATEMATIKA KELAS 5: PENGOLAHAN DATA ---
+        const LEVEL_DATA = {
+            1: {
+                title: "Pulau Sumatera",
+                subtitle: "Misi: Memilah Jenis Penyajian Data",
+                instruction: "Tarik nama-nama penyajian data di bawah ini dan masukkan ke dalam kotak yang tepat: Kelompok Angka/Teks atau Kelompok Gambar/Grafik.",
+                items: [
+                    { id: 'item1', text: 'Tabel Frekuensi', matchId: 'teks', icon: '📊' }, 
+                    { id: 'item2', text: 'Piktogram', matchId: 'gambar', icon: '🖼️' },
+                    { id: 'item3', text: 'Diagram Batang', matchId: 'gambar', icon: '📈' },
+                    { id: 'item4', text: 'Turus (Tally)', matchId: 'teks', icon: '卌' },
+                    { id: 'item5', text: 'Daftar Nilai', matchId: 'teks', icon: '📝' },
+                    { id: 'item6', text: "Diagram Garis", matchId: 'gambar', icon: '📉' },
+                ],
+                targets: [
+                    { id: 'teks', label: 'Bentuk Teks / Angka' },
+                    { id: 'gambar', label: 'Bentuk Gambar / Grafik' },
+                ]
+            },
+            2: {
+                title: "Pulau Jawa",
+                subtitle: "Misi: Membaca Tabel Frekuensi",
+                parts: [
+                    {
+                        stimulusTitle: "📋 STIMULUS: Hasil Panen Buah",
+                        stimulusText: "Desa Makmur mendata hasil panen apel selama satu minggu terakhir. Berikut adalah tabel frekuensi hasil panen mereka.",
+                        stimulusTable: [
+                            { hari: 'Senin', jumlah: 25 },
+                            { hari: 'Selasa', jumlah: 15 },
+                            { hari: 'Rabu', jumlah: 35 },
+                            { hari: 'Kamis', jumlah: 20 },
+                            { hari: 'Jumat', jumlah: 40 }
+                        ],
+                        questions: [
+                            {
+                                id: 'q1', type: 'single',
+                                text: "SOAL 1. Pada hari apa panen apel paling banyak terjadi?",
+                                options: ["Senin", "Rabu", "Jumat", "Selasa"],
+                                correct: 2
+                            },
+                            {
+                                id: 'q2', type: 'single',
+                                text: "SOAL 2. Berapa selisih panen antara hari Rabu dan Selasa?",
+                                options: ["10 kg", "20 kg", "15 kg", "25 kg"],
+                                correct: 1
+                            },
+                            {
+                                id: 'q3', type: 'multiple',
+                                text: "SOAL 3 (Pilihan Ganda Kompleks). Pernyataan mana saja yang BENAR berdasarkan tabel di atas? (Pilih 2 jawaban)",
+                                options: ["Panen hari Kamis lebih sedikit dari hari Senin", "Panen paling sedikit terjadi pada hari Rabu", "Total panen hari Senin dan Selasa adalah 40 kg", "Panen hari Jumat dua kali lipat dari hari Kamis"],
+                                correct: [0, 2, 3] 
+                            },
+                            {
+                                id: 'q4', type: 'single',
+                                text: "SOAL 4. Berapa total panen apel dari hari Senin sampai Rabu?",
+                                options: ["65 kg", "75 kg", "80 kg", "85 kg"],
+                                correct: 1 // 25 + 15 + 35 = 75
+                            },
+                            {
+                                id: 'q5', type: 'multiple',
+                                text: "SOAL 5 (Pilihan Ganda Kompleks). Pada hari apa saja hasil panen apel mencapai 25 kg atau lebih? (Pilih semua jawaban benar)",
+                                options: ["Senin", "Selasa", "Rabu", "Jumat"],
+                                correct: [0, 2, 3] // Senin(25), Rabu(35), Jumat(40)
+                            }
+                        ]
+                    }
+                ]
+            },
+            3: {
+                title: "Pulau Kalimantan",
+                subtitle: "Misi: Analisis Data Gambar",
+                stimulusTitle: "📚 STIMULUS: Buku Perpustakaan",
+                stimulusText: "Perhatikan piktogram jumlah buku yang dipinjam siswa dari perpustakaan selama 4 hari.\n\nKETERANGAN PENTING:\nSetiap 1 simbol buku (📘) mewakili 10 buku nyata.\nSetiap setengah simbol buku (📖) mewakili 5 buku nyata.",
+                stimulusPictogram: [
+                    { label: 'Senin', icons: ['📘', '📘', '📘'] }, // 30
+                    { label: 'Selasa', icons: ['📘', '📘', '📖'] }, // 25
+                    { label: 'Rabu', icons: ['📘', '📘', '📘', '📘'] }, // 40
+                    { label: 'Kamis', icons: ['📘', '📖'] } // 15
+                ],
+                questions: [
+                    {
+                        id: 'k1', text: "1. Pada hari Senin, terdapat 3 buku yang dipinjam dari perpustakaan.",
+                        correctStatement: 'Salah',
+                        reasonOptions: ["a. Karena 3 simbol buku berarti 3 x 10 = 30 buku", "b. Karena Senin adalah hari libur", "c. Karena simbol buku hanya hiasan", "d. Karena seharusnya dikali 5"],
+                        correctReasonIndex: 0
+                    },
+                    {
+                        id: 'k2', text: "2. Jumlah buku yang dipinjam pada hari Selasa adalah 25 buku.",
+                        correctStatement: 'Benar',
+                        reasonOptions: ["a. Karena 2 buku penuh (20) ditambah 1 setengah buku (5)", "b. Karena buku warna biru nilainya 25", "c. Karena Selasa hari sibuk", "d. Karena dihitung manual dari gambar"],
+                        correctReasonIndex: 0
+                    },
+                    {
+                        id: 'k3', text: "3. Hari Kamis adalah hari dengan peminjaman buku paling banyak.",
+                        correctStatement: 'Salah',
+                        reasonOptions: ["a. Karena hari Rabu memiliki simbol buku terbanyak yaitu 4 simbol (40 buku)", "b. Karena Kamis memiliki simbol setengah buku", "c. Karena peminjaman terbanyak di hari Senin", "d. Karena jumlahnya sama semua"],
+                        correctReasonIndex: 0
+                    },
+                    {
+                        id: 'k4', text: "4. Total buku yang dipinjam pada hari Senin dan Kamis adalah 45 buku.",
+                        correctStatement: 'Benar',
+                        reasonOptions: ["a. Karena Senin (30) ditambah Kamis (15) sama dengan 45", "b. Karena Senin (3) ditambah Kamis (1.5) sama dengan 4.5", "c. Karena 45 adalah angka keberuntungan", "d. Karena dihitung dari warna buku"],
+                        correctReasonIndex: 0
+                    },
+                    {
+                        id: 'k5', text: "5. Selisih jumlah buku yang dipinjam pada hari Rabu dan Selasa adalah 15 buku.",
+                        correctStatement: 'Benar',
+                        reasonOptions: ["a. Karena hari Rabu (40) dikurangi hari Selasa (25) sama dengan 15", "b. Karena Rabu memiliki 4 simbol biru", "c. Karena 15 adalah angka peminjaman hari Kamis", "d. Karena dihitung secara acak dari piktogram"],
+                        correctReasonIndex: 0
+                    }
+                ]
+            },
+            4: {
+                title: "Pulau Sulawesi",
+                subtitle: "Misi: Melengkapi Laporan Data",
+                stimulusTitle: "📊 STIMULUS: Ekstrakurikuler Siswa",
+                stimulusText: "Detektif Data menemukan diagram batang tentang jumlah siswa kelas 5 yang mengikuti ekstrakurikuler. Namun, laporan hasil analisisnya tumpah terkena tinta! Bantu detektif mengisi kata yang hilang.\n\nData Diagram:\n- Pramuka: 25 siswa\n- Futsal: 15 siswa\n- Tari: 10 siswa\n- Melukis: 5 siswa",
+                paragraphs: [
+                    {
+                        id: 'p1',
+                        title: "Laporan Hasil Analisis Diagram Batang",
+                        sentences: [
+                            { id: 's1', before: "Dari diagram batang di atas, ekstrakurikuler yang paling banyak diminati oleh siswa kelas 5 adalah ", blankId: 'b1', after: ". ", correct: "Pramuka" },
+                            { id: 's2', before: "Sebaliknya, ekstrakurikuler yang paling sedikit peminatnya adalah ", blankId: 'b2', after: " dengan jumlah hanya 5 orang. ", correct: "Melukis" },
+                            { id: 's3', before: "Jika kita membandingkan Futsal dan Tari, terdapat selisih sebanyak ", blankId: 'b3', after: " siswa. ", correct: "lima" },
+                            { id: 's4', before: "Untuk mengetahui jumlah seluruh siswa kelas 5 yang didata, kita harus ", blankId: 'b4', after: " semua jumlah siswa di setiap ekstrakurikuler. ", correct: "menjumlahkan" },
+                            { id: 's5', before: "Berdasarkan hitungan tersebut, total siswa kelas 5 yang mengikuti ekstrakurikuler adalah ", blankId: 'b5', after: " orang.", correct: "55" }
+                        ]
+                    }
+                ],
+                words: [
+                    { id: 'w1', text: 'Pramuka' },
+                    { id: 'w2', text: 'Melukis' },
+                    { id: 'w3', text: 'lima' },
+                    { id: 'w4', text: 'menjumlahkan' },
+                    { id: 'w5', text: '55' },
+                    { id: 'w6', text: 'Futsal' }, 
+                    { id: 'w7', text: 'mengurangi' }      
+                ]
+            },
+            5: {
+                title: "Pulau Papua",
+                subtitle: "Markas Utama: Proyek Data",
+                stimulusTitle: "🕵️ SURVEI MAKANAN FAVORIT",
+                stimulusText: "Detektif, saatnya beraksi di lapangan! Kepala Sekolah ingin tahu makanan favorit siswa untuk menu kantin baru.\n\nTugasmu:\nLakukan survei kepada 20 orang teman di sekolahmu. Tanyakan makanan favorit mereka dari 5 pilihan ini:\n1. Bakso\n2. Soto\n3. Mie Goreng\n4. Nasi Kuning\n5. Nasi Pecel\n\nSetelah datanya terkumpul, laporkan dan analisis hasilnya di bawah ini!",
+                tasks: {
+                    t1: {
+                        title: "1️⃣ Laporan Data Survei",
+                        desc: "Masukkan jumlah teman yang menyukai masing-masing makanan (Total harus tepat 20 orang):"
+                    },
+                    t2: {
+                        title: "2️⃣ Analisis Hasil Survei",
+                        desc: "Jawablah pertanyaan berikut berdasarkan data angka yang telah kamu masukkan di atas:",
+                        q1: "Makanan apa yang paling BANYAK disukai?",
+                        q2: "Makanan apa yang paling SEDIKIT disukai?",
+                        q3: "Berapa SELISIH jumlah penyuka makanan terbanyak dan paling sedikit?"
+                    },
+                    t3: {
+                        title: "3️⃣ Pemilihan Penyajian Data",
+                        desc: "Pilih bentuk penyajian data yang paling cocok untuk presentasimu nanti:",
+                        options: ["📊 Diagram Batang", "🖼️ Piktogram", "📋 Tabel Frekuensi", "📝 Daftar Turus"],
+                        requirements: "Setiap penyajian punya kelebihan. Diagram batang mudah dilihat grafiknya, Piktogram menarik dengan gambar, Tabel sangat rinci.",
+                        planLabel: "Tuliskan alasan mengapa kamu memilih bentuk penyajian data tersebut:"
+                    },
+                    t4: {
+                        title: "4️⃣ Tampilkan Hasil",
+                        desc: "Kirim laporan ini lalu gambarlah penyajian datamu di buku tugas/karton!"
+                    }
+                },
+                reflection: "5️⃣ Refleksi Detektif\nMenurutmu, mengapa kemampuan membaca dan mengolah data itu penting dalam kehidupan kita sehari-hari?"
+            }
+        };
+
+        const VIDEO1_QUESTIONS = [
+            {
+                id: 'v1q1',
+                text: "Pertanyaan 1: Pengertian Data\nBerdasarkan materi yang dipelajari, apa yang dimaksud dengan data?",
+                options: ["A. Kumpulan gambar kartun", "B. Kumpulan keterangan atau informasi yang diperoleh dari suatu pengamatan", "C. Cerita karangan fiksi", "D. Angka-angka yang tidak bermakna"],
+                correct: 1
+            },
+            {
+                id: 'v1q2',
+                text: "Pertanyaan 2: Penyajian Tabel\nApa fungsi utama menggunakan sistem turus (tally) saat mengumpulkan data?",
+                options: ["A. Agar tulisan terlihat indah", "B. Untuk mempersulit perhitungan", "C. Memudahkan menghitung jumlah data secara berkelompok (per 5)", "D. Menggambar bentuk benda yang diamati"],
+                correct: 2
+            },
+            {
+                id: 'v1q3',
+                text: "Pertanyaan 3: Piktogram\nDalam sebuah piktogram buah-buahan, 1 gambar buah apel mewakili 10 buah apel asli. Jika ada 4 gambar apel, berapa jumlah apel sebenarnya?",
+                options: ["A. 4 apel", "B. 14 apel", "C. 40 apel", "D. 400 apel"],
+                correct: 2
+            }
+        ];
+
+        const VIDEO2_QUESTIONS = [
+            {
+                id: 'vq1',
+                text: "Pertanyaan 1: Diagram Batang\nSumbu mendatar (horizontal) pada diagram batang biasanya digunakan untuk menunjukkan...",
+                options: ["A. Jumlah atau frekuensi", "B. Jenis data atau kategori (seperti nama hari/jenis hewan)", "C. Warna diagram", "D. Nilai maksimal"],
+                correct: 1
+            },
+            {
+                id: 'vq2',
+                text: "Pertanyaan 2: Analisis Data\nJika batang pada data 'Sepak Bola' lebih tinggi dari batang 'Basket', itu artinya...",
+                options: ["A. Sepak Bola peminatnya lebih sedikit", "B. Basket adalah olahraga terbaik", "C. Sepak Bola memiliki peminat lebih banyak dari Basket", "D. Tinggi batang tidak memiliki arti"],
+                correct: 2
+            },
+            {
+                id: 'vq3',
+                text: "Pertanyaan 3: Membaca Diagram\nCara mengetahui jumlah seluruh data dari sebuah diagram batang adalah dengan...",
+                options: ["A. Melihat batang yang paling tinggi saja", "B. Menjumlahkan nilai/angka dari seluruh batang yang ada", "C. Mengurangkan batang tertinggi dengan terendah", "D. Menghitung jumlah warna yang dipakai"],
+                correct: 1
+            }
+        ];
+
+        const PODCAST_QUESTIONS = [
+            { id: 'pq1', text: 'Cara pengumpulan data dengan memberikan lembar daftar pertanyaan kepada narasumber.', matchId: 'optC' },
+            { id: 'pq2', text: 'Tanda garis-garis tegak dan miring (contoh: 卌) yang digunakan untuk memudahkan menghitung jumlah.', matchId: 'optD' },
+            { id: 'pq3', text: 'Bentuk penyajian data yang menggunakan simbol atau gambar untuk mewakili jumlah tertentu.', matchId: 'optF' },
+            { id: 'pq4', text: 'Penyajian data berbentuk persegi panjang tegak atau mendatar yang tingginya menyesuaikan nilai.', matchId: 'optA' },
+            { id: 'pq5', text: 'Selisih antara nilai tertinggi dan nilai terendah dalam sekumpulan data.', matchId: 'optE' }
+        ];
+
+        const PODCAST_OPTIONS = [
+            { id: 'optA', text: 'A. Diagram Batang' },
+            { id: 'optB', text: 'B. Wawancara' },
+            { id: 'optC', text: 'C. Angket / Kuesioner' },
+            { id: 'optD', text: 'D. Turus (Tally)' },
+            { id: 'optE', text: 'E. Selisih Nilai' },
+            { id: 'optF', text: 'F. Piktogram' },
+            { id: 'optG', text: 'G. Diagram Garis' }
+        ];
+
+        // --- KOMPONEN UTAMA ---
+
+        function PetualanganBhinneka() {
+            const [currentView, setCurrentView] = useState('intro'); 
+            const [unlockedLevel, setUnlockedLevel] = useState(1); 
+            const [correctCount, setCorrectCount] = useState(0); 
+            const [userData, setUserData] = useState({});
+            const [isMenuOpen, setIsMenuOpen] = useState(false);
+            const [isFullscreen, setIsFullscreen] = useState(false);
+            const [isMusicPlaying, setIsMusicPlaying] = useState(false);
+            
+            const [playerName, setPlayerName] = useState("");
+            const [playerSchool, setPlayerSchool] = useState("");
+
+            const audioRef = useRef(null);
+
+            useEffect(() => {
+                if (audioRef.current) {
+                    if (isMusicPlaying) {
+                        const playPromise = audioRef.current.play();
+                        if (playPromise !== undefined) {
+                            playPromise.catch(error => {
+                                console.log("Autoplay blocked/failed:", error);
+                                setIsMusicPlaying(false);
+                            });
+                        }
+                    } else {
+                        audioRef.current.pause();
+                    }
+                }
+            }, [isMusicPlaying]);
+
+            const toggleMusic = () => setIsMusicPlaying(!isMusicPlaying);
+
+            const handleStartGame = (name, school) => {
+                setPlayerName(name);
+                setPlayerSchool(school);
+                setCurrentView('tujuan_panduan'); 
+                setIsMusicPlaying(true); 
+            };
+
+            const handleLevelComplete = (levelNum) => {
+                if (levelNum < 5) {
+                    setUnlockedLevel(prev => Math.max(prev, levelNum + 1));
+                    setCurrentView('map');
+                } else {
+                    setCurrentView('end');
+                }
+            };
+
+            const startLevel = (levelNum) => {
+                setCurrentView(`level${levelNum}`);
+            };
+
+            const updateUserData = (key, value) => setUserData(prev => ({ ...prev, [key]: value }));
+            const incrementCorrect = () => setCorrectCount(prev => prev + 1);
+
+            const toggleFullscreen = () => {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch((e) => console.log(e));
+                    setIsFullscreen(true);
+                } else {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                        setIsFullscreen(false);
+                    }
+                }
+            };
+
+            let currentIslandName = "";
+            let currentMission = "";
+            let currentIcon = "";
+            if (currentView.startsWith('level')) {
+                const lvl = parseInt(currentView.replace('level', ''));
+                if (LEVEL_DATA[lvl]) {
+                    currentIslandName = LEVEL_DATA[lvl].title;
+                    currentMission = LEVEL_DATA[lvl].subtitle;
+                    const icons = ["", "🧩", "📋", "📚", "📊", "🕵️"];
+                    currentIcon = icons[lvl];
+                }
+            }
+
+            return (
+                <div className="h-screen w-screen font-sans text-gray-800 flex flex-col transition-all duration-700 ease-in-out overflow-hidden"
+                     style={getBackgroundStyle(currentView)}>
+                  
+                  <audio ref={audioRef} src={BACKSONG_URL} loop preload="auto" />
+
+                  <div className="flex flex-col w-full max-w-[1600px] mx-auto h-full relative z-10">
+                    
+                    {/* Header Top Bar */}
+                    <div className="flex-none z-40 bg-white/95 backdrop-blur-md border-b-4 border-amber-400 p-2 md:p-3 xl:p-4 text-gray-800 flex justify-between items-center shadow-md mx-2 mt-2 rounded-xl gap-2">
+                        {/* Kiri: Logo & Menu */}
+                        <div className="flex items-center gap-2 md:gap-3 xl:gap-4 flex-shrink-0 w-1/4">
+                             <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-1.5 xl:p-2 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-full transition">
+                               {isMenuOpen ? <Icons.X className="w-6 h-6 xl:w-8 xl:h-8" /> : <Icons.Menu className="w-6 h-6 xl:w-8 xl:h-8" />}
+                             </button>
+                             <div className="w-8 h-8 xl:w-12 xl:h-12 bg-amber-400 rounded-full flex items-center justify-center text-white font-black shadow-inner hidden sm:flex">
+                                <Icons.Search className="w-5 h-5 xl:w-7 xl:h-7" />
+                             </div>
+                             <div className="hidden lg:flex flex-col">
+                               <h1 className="font-bold text-lg xl:text-xl 2xl:text-2xl leading-none text-amber-900 tracking-wide">Detektif Data</h1>
+                             </div>
+                        </div>
+
+                        {/* Tengah: Nama Posko & Misi */}
+                        <div className="flex-1 flex flex-col items-center justify-center text-center overflow-hidden">
+                            {currentIslandName ? (
+                                <>
+                                    <div className="flex items-center bg-blue-600 px-3 md:px-5 py-1 xl:py-1.5 rounded-full text-xs md:text-base xl:text-xl font-bold text-white border-2 border-blue-800 shadow-inner whitespace-nowrap">
+                                        <span className="mr-1 xl:mr-2 text-base md:text-xl xl:text-2xl">{currentIcon}</span> {currentIslandName}
+                                    </div>
+                                    <div className="text-[10px] md:text-xs xl:text-sm font-bold text-blue-800 mt-1 bg-blue-100 px-3 md:px-5 py-0.5 xl:py-1 rounded-full border border-blue-200 truncate max-w-full">
+                                        {currentMission}
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="flex flex-col items-center lg:hidden">
+                                    <h1 className="font-bold text-base text-amber-900 leading-none drop-shadow-md tracking-wide">Detektif Data</h1>
+                                    {playerName && <div className="text-[10px] text-gray-600 font-medium mt-1">Halo, {playerName}!</div>}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Kanan: Musik & Bintang */}
+                        <div className="flex items-center gap-2 md:gap-3 xl:gap-5 flex-shrink-0 w-1/4 justify-end">
+                            <button onClick={toggleMusic} className="p-1.5 xl:p-2 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-full transition">
+                               {isMusicPlaying ? <Icons.Volume2 className="w-5 h-5 md:w-6 md:h-6 xl:w-8 xl:h-8"/> : <Icons.VolumeX className="w-5 h-5 md:w-6 md:h-6 xl:w-8 xl:h-8"/>}
+                            </button>
+                            <div className="flex items-center gap-2 bg-blue-900 px-3 py-1.5 xl:px-5 xl:py-2 rounded-full text-sm md:text-base xl:text-xl border border-blue-700 shadow-inner">
+                              <Icons.Star className="w-4 h-4 md:w-5 md:h-5 xl:w-6 xl:h-6 text-yellow-300 fill-yellow-300 animate-pulse" />
+                              <span className="font-bold text-white">{correctCount} / 21</span>
+                            </div>
+                            <button onClick={toggleFullscreen} className="p-1.5 xl:p-2 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-full hidden sm:block transition">
+                               {isFullscreen ? <Icons.Minimize className="w-5 h-5 md:w-6 md:h-6 xl:w-8 xl:h-8"/> : <Icons.Maximize className="w-5 h-5 md:w-6 md:h-6 xl:w-8 xl:h-8"/>}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Menu Overlay */}
+                    {isMenuOpen && (
+                      <div className="absolute top-[70px] md:top-[90px] xl:top-[100px] left-2 w-64 md:w-72 xl:w-80 bg-white/95 backdrop-blur-md shadow-2xl z-50 rounded-xl xl:rounded-2xl border-2 border-amber-200 animate-fade-in overflow-hidden">
+                          <div className="p-4 xl:p-5 space-y-3 xl:space-y-4">
+                            <div className="font-bold text-amber-600 uppercase text-xs xl:text-sm tracking-wider mb-2 border-b pb-2">Navigasi Detektif</div>
+                            <button onClick={() => {setCurrentView('map'); setIsMenuOpen(false)}} className="w-full text-left p-3 rounded-lg flex items-center gap-3 xl:gap-4 hover:bg-amber-50 text-gray-700 font-bold text-sm md:text-base xl:text-lg">
+                               <Icons.Map className="w-5 h-5 xl:w-6 xl:h-6 text-amber-500" /> Peta Kepulauan
+                            </button>
+                            <button onClick={() => {setCurrentView('tujuan_panduan'); setIsMenuOpen(false)}} className="w-full text-left p-3 rounded-lg flex items-center gap-3 xl:gap-4 hover:bg-amber-50 text-gray-700 font-bold text-sm md:text-base xl:text-lg">
+                               <Icons.Home className="w-5 h-5 xl:w-6 xl:h-6 text-amber-500" /> Markas Utama
+                            </button>
+                            <hr className="my-2 border-gray-100" />
+                            <button onClick={() => window.location.reload()} className="w-full text-left p-3 rounded-lg flex items-center gap-3 xl:gap-4 text-red-500 hover:bg-red-50 font-bold text-sm md:text-base xl:text-lg">
+                              <Icons.RefreshCcw className="w-5 h-5 xl:w-6 xl:h-6" /> Mulai Ulang Misi
+                            </button>
+                          </div>
+                      </div>
+                    )}
+
+                    {/* Content Area */}
+                    <main className="flex-grow flex flex-col min-h-0 overflow-y-auto custom-scrollbar relative">
+                        <div className={`flex flex-col flex-grow w-full mx-auto p-2 md:p-4 xl:p-6 ${currentView === 'intro' || currentView === 'tujuan_panduan' || currentView === 'materi' || currentView === 'map' ? 'justify-center items-center' : ''}`}>
+                            {currentView === 'intro' && <IntroScreen onStart={handleStartGame} />}
+                            {currentView === 'tujuan_panduan' && <TujuanPanduanScreen onNext={() => setCurrentView('materi')} />}
+                            {currentView === 'materi' && <MateriScreen onNext={() => setCurrentView('map')} />}
+                            {currentView === 'map' && <MapScreen unlockedLevel={unlockedLevel} onLevelSelect={startLevel} onFinish={() => setCurrentView('end')} isCompleted={unlockedLevel > 5} />}
+                            {currentView === 'level1' && <Level1Sumatera onComplete={() => handleLevelComplete(1)} onCorrect={incrementCorrect} />}
+                            {currentView === 'level2' && <Level2Jawa onComplete={() => handleLevelComplete(2)} onCorrect={incrementCorrect} />}
+                            {currentView === 'level3' && <Level3Kalimantan onComplete={() => handleLevelComplete(3)} onCorrect={incrementCorrect} />}
+                            {currentView === 'level4' && <Level4Sulawesi onComplete={() => handleLevelComplete(4)} onCorrect={incrementCorrect} />}
+                            {currentView === 'level5' && <Level5Papua onComplete={() => handleLevelComplete(5)} saveRef={(val) => updateUserData('ref5', val)} saveData={updateUserData} />}
+                            {currentView === 'end' && <EndScreen userData={userData} correctCount={correctCount} playerName={playerName} playerSchool={playerSchool} onRestart={() => window.location.reload()} />}
+                        </div>
+                    </main>
+
+                  </div>
+                </div>
+            );
+        }
+
+        // --- STATIC INTRO SCREEN ---
+        function IntroScreen({ onStart }) {
+            const [name, setName] = useState("");
+            const [school, setSchool] = useState("");
+            const [showError, setShowError] = useState(false);
+
+            const handleStartClick = () => {
+                if (name.trim().length > 0 && school.trim().length > 0) {
+                    onStart(name, school);
+                } else {
+                    setShowError(true);
+                    setTimeout(() => setShowError(false), 3000); 
+                }
+            };
+
+            return (
+                <div className="w-full flex flex-col justify-center items-center gap-4 xl:gap-6 animate-fade-in flex-1 min-h-0">
+                  <div className="flex flex-col md:flex-row items-center justify-center gap-4 xl:gap-8 bg-white/95 p-4 xl:p-6 rounded-3xl backdrop-blur-md shadow-md border-4 border-amber-400 w-full max-w-4xl xl:max-w-5xl">
+                    <div className="w-32 md:w-40 xl:w-48 h-32 md:h-40 xl:h-48 bg-white/80 rounded-full flex items-center justify-center shadow-inner border-4 border-amber-300 animate-bounce-slow p-2 md:p-4 backdrop-blur-sm">
+                        <img src={LOGO_IMAGE_URL} alt="Logo Detektif Data" className="w-full h-full object-contain drop-shadow-md" />
+                    </div>
+                    <div className="text-center md:text-left">
+                        <h2 className="text-4xl md:text-5xl xl:text-6xl font-extrabold text-amber-900 drop-shadow-sm leading-tight">Detektif Data Nusantara</h2>
+                        <div className="flex flex-col sm:flex-row items-center gap-2 mt-3 xl:mt-4">
+                            <p className="text-sm md:text-base xl:text-xl text-blue-700 font-bold bg-blue-100 inline-block px-4 py-1.5 xl:py-2 rounded-full border border-blue-300 shadow-sm">Misi Misteri Angka!</p>
+                            <p className="text-sm md:text-base xl:text-xl text-orange-700 font-bold bg-orange-100 inline-block px-4 py-1.5 xl:py-2 rounded-full border border-orange-300 shadow-sm">Matematika Fase C - Kelas 5 SD</p>
+                        </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col lg:flex-row w-full max-w-4xl xl:max-w-5xl gap-4 xl:gap-6 h-auto">
+                    <div className="flex-1 bg-white/95 p-5 xl:p-8 rounded-3xl shadow-lg border-2 border-blue-200 backdrop-blur-md flex flex-col justify-center">
+                        <p className="text-gray-700 text-sm md:text-base xl:text-xl leading-relaxed xl:leading-loose font-medium">
+                            "Halo Detektif Cilik! Dunia ini penuh dengan informasi yang acak dan membingungkan.
+                            <br/><br/>
+                            Hari ini, kamu memiliki <span className="text-orange-600 font-bold">Misi Rahasia</span>. Selesaikan petualangan misteri data di 5 pulau Indonesia untuk belajar cara mengumpulkan, membaca tabel, piktogram, dan diagram batang. Buktikan kamu layak menjadi <span className="text-blue-700 font-bold">Detektif Data Terhebat!</span>"
+                        </p>
+                    </div>
+
+                    <div className="flex-1 w-full bg-blue-50/95 p-5 xl:p-8 rounded-3xl border-2 border-blue-300 shadow-lg relative flex flex-col justify-center">
+                        <h3 className="font-bold text-blue-900 mb-4 flex items-center justify-center gap-2 text-sm md:text-base xl:text-xl uppercase tracking-wide border-b border-blue-200 pb-2 xl:pb-3">
+                            <Icons.Users className="w-5 h-5 xl:w-6 xl:h-6" /> Tanda Pengenal Detektif
+                        </h3>
+                        <div className="space-y-4">
+                            <div className="relative">
+                                <span className="absolute left-3 xl:left-4 top-3 w-5 h-5 xl:w-6 xl:h-6 text-blue-400"><Icons.User className="w-5 h-5 xl:w-6 xl:h-6"/></span>
+                                <input type="text" placeholder="Nama Detektif..." className={`w-full pl-10 xl:pl-12 p-3 xl:p-3.5 text-sm md:text-base xl:text-lg rounded-xl border outline-none font-medium text-gray-700 ${showError && name.length === 0 ? 'border-red-500 bg-red-50' : 'border-blue-300 focus:border-blue-500'}`} value={name} onChange={(e) => setName(e.target.value)} />
+                            </div>
+                            <div className="relative">
+                                <span className="absolute left-3 xl:left-4 top-3 w-5 h-5 xl:w-6 xl:h-6 text-blue-400"><Icons.School className="w-5 h-5 xl:w-6 xl:h-6"/></span>
+                                <input type="text" placeholder="Asal Markas (Sekolah)..." className={`w-full pl-10 xl:pl-12 p-3 xl:p-3.5 text-sm md:text-base xl:text-lg rounded-xl border outline-none font-medium text-gray-700 ${showError && school.length === 0 ? 'border-red-500 bg-red-50' : 'border-blue-300 focus:border-blue-500'}`} value={school} onChange={(e) => setSchool(e.target.value)} />
+                            </div>
+                        </div>
+                        
+                        {showError && (
+                          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[90%] bg-red-100 border-2 border-red-400 text-red-700 px-4 py-3 rounded-xl flex flex-col items-center justify-center text-sm xl:text-base text-center shadow-2xl z-20">
+                              <span className="font-bold">Isi Nama & Sekolah dulu ya Detektif!</span>
+                          </div>
+                        )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col-reverse md:flex-row items-center justify-between w-full max-w-4xl xl:max-w-5xl gap-4 mt-2">
+                    <div className="text-xs xl:text-sm text-gray-600 bg-white/90 px-4 py-2 xl:py-3 rounded-xl shadow-sm border border-white/50 backdrop-blur-sm text-center md:text-left leading-tight font-medium">
+                        Ide Pengembang: Abdul Rahmat, S.Pd SDN 011 Balikpapan Tengah
+                    </div>
+
+                    <button onClick={handleStartClick} className="bg-gradient-to-b from-blue-600 to-blue-700 text-white font-black hover:from-blue-500 hover:to-blue-600 transition-all border-b-4 border-blue-900 active:border-b-0 py-3 xl:py-4 px-8 xl:px-12 rounded-full shadow-lg active:shadow-none active:translate-y-1 flex items-center gap-2 justify-center text-lg xl:text-2xl w-full md:w-auto">
+                        Mulai Investigasi <Icons.ArrowRight className="w-5 h-5 xl:w-7 xl:h-7" />
+                    </button>
+                  </div>
+                </div>
+            );
+        }
+
+        // --- TUJUAN & PANDUAN SCREEN ---
+        function TujuanPanduanScreen({ onNext }) {
+            const [activeModal, setActiveModal] = useState(null);
+            const closeModal = () => setActiveModal(null);
+
+            return (
+                <div className="w-full h-full flex flex-col justify-center items-center animate-fade-in flex-1 min-h-0 relative">
+                    <div className="bg-white/95 p-4 md:p-8 xl:p-10 rounded-3xl shadow-xl border-4 border-amber-300 backdrop-blur-md w-full max-w-4xl flex flex-col">
+                        <div className="text-center border-b-2 border-amber-100 pb-3 xl:pb-5 mb-4 xl:mb-6 flex-shrink-0">
+                            <h2 className="text-2xl md:text-4xl xl:text-5xl font-extrabold text-amber-900 uppercase tracking-wider">Briefing Detektif</h2>
+                            <p className="text-sm md:text-base xl:text-xl text-amber-700 font-bold mt-1 xl:mt-2">Pilih menu di bawah ini untuk memahami tugasmu!</p>
+                        </div>
+                        
+                        <div className="flex flex-col gap-4 md:gap-6 justify-center items-center flex-1 my-4">
+                            <button onClick={() => setActiveModal('tujuan')} className="w-full max-w-lg bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-extrabold py-4 md:py-5 px-6 md:px-8 rounded-2xl shadow-[0_6px_0_#1e3a8a] active:shadow-none active:translate-y-2 transition-all flex items-center justify-between text-lg md:text-2xl xl:text-3xl">
+                                <span className="flex items-center gap-3 md:gap-4"><Icons.CheckCircle className="w-8 h-8 md:w-10 md:h-10" /> Tujuan Misi</span>
+                                <Icons.ArrowRight className="w-6 h-6 md:w-8 md:h-8" />
+                            </button>
+
+                            <button onClick={() => setActiveModal('panduan')} className="w-full max-w-lg bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-extrabold py-4 md:py-5 px-6 md:px-8 rounded-2xl shadow-[0_6px_0_#0f766e] active:shadow-none active:translate-y-2 transition-all flex items-center justify-between text-lg md:text-2xl xl:text-3xl">
+                                <span className="flex items-center gap-3 md:gap-4"><Icons.Map className="w-8 h-8 md:w-10 md:h-10" /> Panduan Investigasi</span>
+                                <Icons.ArrowRight className="w-6 h-6 md:w-8 md:h-8" />
+                            </button>
+
+                            <button onClick={() => setActiveModal('referensi')} className="w-full max-w-lg bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-extrabold py-4 md:py-5 px-6 md:px-8 rounded-2xl shadow-[0_6px_0_#9a3412] active:shadow-none active:translate-y-2 transition-all flex items-center justify-between text-lg md:text-2xl xl:text-3xl">
+                                <span className="flex items-center gap-3 md:gap-4"><Icons.BookOpen className="w-8 h-8 md:w-10 md:h-10" /> Berkas Materi</span>
+                                <Icons.ArrowRight className="w-6 h-6 md:w-8 md:h-8" />
+                            </button>
+                        </div>
+                        
+                        <div className="mt-6 pt-4 xl:mt-8 xl:pt-6 border-t-2 border-gray-100 text-center flex-shrink-0">
+                            <button onClick={onNext} className="bg-gradient-to-b from-green-500 to-green-600 text-white font-black hover:from-green-400 hover:to-green-500 transition-all border-b-4 border-green-700 active:border-b-0 py-3 px-10 xl:py-4 xl:px-14 text-lg md:text-xl xl:text-2xl rounded-full shadow-lg active:shadow-none active:translate-y-1 inline-flex items-center gap-2">
+                                Siap Beraksi! <Icons.ArrowRight className="w-6 h-6 xl:w-7 xl:h-7" />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Modals */}
+                    {activeModal && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={closeModal}>
+                            <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl border-4 border-blue-300 overflow-hidden flex flex-col max-h-[90vh] animate-pop-in" onClick={e => e.stopPropagation()}>
+                                <div className="flex justify-between items-center p-4 md:p-6 border-b-2 border-blue-100 bg-blue-50">
+                                    <h3 className="font-extrabold text-xl md:text-2xl xl:text-3xl text-blue-800 flex items-center gap-3">
+                                        {activeModal === 'tujuan' && <><Icons.CheckCircle className="w-7 h-7 md:w-9 md:h-9 text-blue-500"/> Tujuan Pembelajaran</>}
+                                        {activeModal === 'panduan' && <><Icons.Map className="w-7 h-7 md:w-9 md:h-9 text-teal-500"/> Panduan MPI</>}
+                                        {activeModal === 'referensi' && <><Icons.BookOpen className="w-7 h-7 md:w-9 md:h-9 text-orange-500"/> Berkas Materi</>}
+                                    </h3>
+                                    <button onClick={closeModal} className="p-2 bg-white hover:bg-red-100 hover:text-red-600 rounded-full transition-colors shadow-sm border border-gray-200">
+                                        <Icons.X className="w-6 h-6 md:w-8 md:h-8" />
+                                    </button>
+                                </div>
+                                
+                                <div className="p-5 md:p-8 overflow-y-auto custom-scrollbar flex-1 bg-white">
+                                    {activeModal === 'tujuan' && (
+                                        <div className="bg-blue-50 p-5 xl:p-8 rounded-2xl shadow-sm space-y-4 md:space-y-6 border border-blue-200">
+                                            <div className="flex gap-4 items-start bg-white p-4 xl:p-6 rounded-xl border border-blue-100 shadow-sm">
+                                                <div className="bg-blue-600 text-white font-black rounded-full w-10 h-10 md:w-12 md:h-12 flex items-center justify-center flex-shrink-0 text-lg md:text-xl shadow-md">🎯</div>
+                                                <p className="text-gray-700 font-bold text-base md:text-lg xl:text-2xl leading-relaxed mt-1 md:mt-2">Peserta didik dapat mengurutkan, membandingkan, menyajikan, dan menganalisis data banyak benda dalam bentuk gambar, piktogram, diagram batang, dan tabel frekuensi untuk mendapatkan informasi.</p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {activeModal === 'panduan' && (
+                                        <div className="bg-teal-50 p-5 xl:p-8 rounded-2xl shadow-sm border border-teal-200 flex flex-col justify-center">
+                                            <ul className="text-base md:text-lg xl:text-2xl text-gray-700 space-y-4 md:space-y-5 font-medium">
+                                                <li className="flex items-start gap-3 md:gap-4 bg-white p-4 md:p-5 rounded-xl border border-teal-100 shadow-sm">
+                                                    <span className="text-2xl">📖</span> 
+                                                    <span>Pelajari materi analisis data melalui menu <b className="text-teal-800">Video Pembelajaran, Latihan Pemahaman, dan Rangkuman Teori</b>.</span>
+                                                </li>
+                                                <li className="flex items-start gap-3 md:gap-4 bg-white p-4 md:p-5 rounded-xl border border-teal-100 shadow-sm">
+                                                    <span className="text-2xl">🗺️</span> 
+                                                    <span>Buka <strong className="text-teal-800">Peta Kepulauan</strong> dan selesaikan petualangan misteri data di 5 pulau Indonesia.</span>
+                                                </li>
+                                                <li className="flex items-start gap-3 md:gap-4 bg-white p-4 md:p-5 rounded-xl border border-teal-100 shadow-sm">
+                                                    <span className="text-2xl">⭐</span> 
+                                                    <span>Kumpulkan <b className="text-yellow-600">Poin Bintang</b> dari setiap analisis yang tepat.</span>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    )}
+
+                                    {activeModal === 'referensi' && (
+                                        <div className="bg-orange-50 p-5 md:p-8 rounded-2xl shadow-sm border border-orange-200">
+                                            <p className="font-bold text-orange-900 mb-4 text-lg">Referensi untuk pembelajaran Matematika Pengolahan Data:</p>
+                                            <ul className="text-sm md:text-base xl:text-xl text-gray-700 space-y-5 md:space-y-6 font-medium list-disc pl-6 md:pl-8 break-words">
+                                                <li><strong className="text-orange-800 text-base block mb-1">Membaca Tabel & Piktogram:</strong> <a href="https://www.youtube.com/results?search_query=membaca+tabel+dan+piktogram+kelas+5" target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 underline transition-colors">Cari di YouTube</a></li>
+                                                <li><strong className="text-orange-800 text-base block mb-1">Membaca Diagram Batang:</strong> <a href="https://www.youtube.com/results?search_query=membaca+diagram+batang+kelas+5" target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 underline transition-colors">Cari di YouTube</a></li>
+                                                <li><strong className="text-orange-800 text-base block mb-1">Buku Teks:</strong> Buku Matematika SD Kelas 5 Bab Pengolahan Data.</li>
+                                            </ul>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="p-4 md:p-6 border-t-2 border-blue-100 bg-blue-50 text-center">
+                                    <button onClick={closeModal} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-10 rounded-xl transition-colors shadow-md text-lg">Mengerti</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // --- MATERI PEMBELAJARAN SCREEN (TABS) ---
+        function MateriScreen({ onNext }) {
+            const [activeTab, setActiveTab] = useState(null); 
+            
+            const [activeVideoTab, setActiveVideoTab] = useState('tabel'); 
+            const [videoAnswersTabel, setVideoAnswersTabel] = useState({});
+            const [videoQuizSubmittedTabel, setVideoQuizSubmittedTabel] = useState(false);
+            const [videoAnswersDiagram, setVideoAnswersDiagram] = useState({});
+            const [videoQuizSubmittedDiagram, setVideoQuizSubmittedDiagram] = useState(false);
+
+            const shuffledPodcastOptions = useMemo(() => shuffleArray(PODCAST_OPTIONS), []);
+            const [podcastDropped, setPodcastDropped] = useState({});
+            const [podcastSelected, setPodcastSelected] = useState(null);
+            const [podcastDragOver, setPodcastDragOver] = useState(null);
+            const [podcastSubmitted, setPodcastSubmitted] = useState(false);
+            const [podcastFeedback, setPodcastFeedback] = useState("");
+
+            const handlePodcastDragStart = (e, opt) => { e.dataTransfer.setData("opt", JSON.stringify(opt)); };
+            const handlePodcastDrop = (e, qId) => {
+                e.preventDefault();
+                setPodcastDragOver(null);
+                const optData = e.dataTransfer.getData("opt");
+                if (optData) {
+                    const opt = JSON.parse(optData);
+                    setPodcastDropped(prev => ({ ...prev, [qId]: opt }));
+                    setPodcastFeedback("");
+                }
+            };
+            const handlePodcastRemove = (qId) => {
+                setPodcastDropped(prev => { const newD = {...prev}; delete newD[qId]; return newD; });
+                setPodcastFeedback("");
+            };
+            const handlePodcastOptClick = (opt) => setPodcastSelected(podcastSelected?.id === opt.id ? null : opt);
+            const handlePodcastTargetClick = (qId) => {
+                if (podcastSelected) {
+                    setPodcastDropped(prev => ({...prev, [qId]: podcastSelected}));
+                    setPodcastSelected(null);
+                    setPodcastFeedback("");
+                } else if (podcastDropped[qId]) {
+                    handlePodcastRemove(qId);
+                }
+            };
+            const checkPodcastAnswer = () => {
+                if (Object.keys(podcastDropped).length < PODCAST_QUESTIONS.length) {
+                    setPodcastFeedback("Pasangkan semua definisi dengan istilah yang tepat!");
+                    return;
+                }
+                let allCorrect = true;
+                PODCAST_QUESTIONS.forEach(q => {
+                    if (podcastDropped[q.id]?.id !== q.matchId) allCorrect = false;
+                });
+                if (allCorrect) {
+                    playSfx('correct');
+                    setPodcastSubmitted(true);
+                    setPodcastFeedback("");
+                } else {
+                    playSfx('incorrect');
+                    setPodcastFeedback("Ada analisis yang keliru. Coba periksa kembali pasangan datanya!");
+                }
+            };
+
+            return (
+                <div className="w-full h-full flex flex-col justify-center items-center animate-fade-in flex-1 min-h-0">
+                  <div className="bg-white/95 p-4 md:p-6 xl:p-8 rounded-3xl shadow-xl border-4 border-amber-300 backdrop-blur-md w-full max-w-5xl xl:max-w-6xl flex flex-col flex-1 min-h-0">
+                      
+                      {activeTab === null ? (
+                          <div className="flex flex-col gap-4 md:gap-6 justify-center items-center flex-1 w-full my-auto">
+                              <h2 className="text-2xl md:text-4xl xl:text-5xl font-extrabold text-amber-900 uppercase tracking-wider mb-2 xl:mb-4 text-center">Berkas Penyelidikan</h2>
+                              
+                              <button onClick={() => setActiveTab('video')} className="w-full max-w-lg bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-extrabold py-4 md:py-5 px-6 md:px-8 rounded-2xl shadow-[0_6px_0_#991b1b] active:shadow-none active:translate-y-2 transition-all flex items-center justify-between text-lg md:text-2xl xl:text-3xl">
+                                  <span className="flex items-center gap-3 md:gap-4"><span className="text-3xl md:text-4xl">🎥</span> Video Pembelajaran</span>
+                                  <Icons.ArrowRight className="w-6 h-6 md:w-8 md:h-8" />
+                              </button>
+
+                              <button onClick={() => setActiveTab('latihan')} className="w-full max-w-lg bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-extrabold py-4 md:py-5 px-6 md:px-8 rounded-2xl shadow-[0_6px_0_#166534] active:shadow-none active:translate-y-2 transition-all flex items-center justify-between text-lg md:text-2xl xl:text-3xl">
+                                  <span className="flex items-center gap-3 md:gap-4"><span className="text-3xl md:text-4xl">🎧</span> Latihan Pemahaman</span>
+                                  <Icons.ArrowRight className="w-6 h-6 md:w-8 md:h-8" />
+                              </button>
+
+                              <button onClick={() => setActiveTab('artikel')} className="w-full max-w-lg bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-extrabold py-4 md:py-5 px-6 md:px-8 rounded-2xl shadow-[0_6px_0_#1e3a8a] active:shadow-none active:translate-y-2 transition-all flex items-center justify-between text-lg md:text-2xl xl:text-3xl">
+                                  <span className="flex items-center gap-3 md:gap-4"><span className="text-3xl md:text-4xl">📖</span> Rangkuman Teori</span>
+                                  <Icons.ArrowRight className="w-6 h-6 md:w-8 md:h-8" />
+                              </button>
+                          </div>
+                      ) : (
+                          <div className="flex flex-col flex-1 min-h-0 w-full">
+                              <div className="flex justify-between items-center mb-4 border-b-2 border-gray-200 pb-4 flex-shrink-0">
+                                  <button onClick={() => setActiveTab(null)} className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-xl flex items-center gap-2 transition-colors text-sm md:text-base shadow-sm border border-gray-300">
+                                      <Icons.ArrowRight className="w-5 h-5 rotate-180" /> Kembali ke Menu
+                                  </button>
+                                  <h3 className="font-extrabold text-blue-900 text-lg md:text-xl xl:text-2xl hidden sm:block">
+                                      {activeTab === 'video' ? '🎥 Rekaman Penyelidikan' : activeTab === 'latihan' ? '🎧 Latihan Pemahaman' : '📖 Rangkuman Teori'}
+                                  </h3>
+                              </div>
+
+                              <div className="flex-1 overflow-y-auto custom-scrollbar p-2 md:p-4 flex flex-col">
+                                  
+                                  {activeTab === 'video' && (
+                                      <div className="w-full flex flex-col animate-fade-in space-y-6 pb-4">
+                                          <div className="flex justify-center gap-3 border-b-2 border-red-100 pb-4 flex-wrap">
+                                              <button onClick={() => setActiveVideoTab('tabel')} className={`py-2 md:py-3 px-4 md:px-6 rounded-full font-bold text-xs md:text-sm xl:text-lg transition-all border-2 ${activeVideoTab === 'tabel' ? 'bg-red-600 text-white border-red-700 shadow-md scale-105' : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'}`}>
+                                                  📋 Tabel & Piktogram
+                                              </button>
+                                              <button onClick={() => setActiveVideoTab('diagram')} className={`py-2 md:py-3 px-4 md:px-6 rounded-full font-bold text-xs md:text-sm xl:text-lg transition-all border-2 ${activeVideoTab === 'diagram' ? 'bg-red-600 text-white border-red-700 shadow-md scale-105' : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'}`}>
+                                                  📊 Diagram Batang
+                                              </button>
+                                          </div>
+
+                                          {activeVideoTab === 'tabel' && (
+                                            <div className="animate-fade-in space-y-6">
+                                                <div className="w-full max-w-4xl mx-auto bg-red-50 border-l-4 border-red-600 p-4 xl:p-6 rounded-xl shadow-sm flex items-center gap-3">
+                                                    <Icons.BookOpen className="w-6 h-6 xl:w-8 xl:h-8 text-red-700 flex-shrink-0" />
+                                                    <p className="text-sm md:text-base xl:text-xl font-bold text-red-900">Perhatikan baik-baik penjelasan tentang penyajian data dalam bentuk Tabel Frekuensi dan Piktogram ini.</p>
+                                                </div>
+                                                
+                                                {/* YouTube Embed */}
+                                                <div className="w-full max-w-4xl mx-auto aspect-video bg-gray-800 rounded-2xl overflow-hidden shadow-lg border-4 border-red-300 flex items-center justify-center relative flex-shrink-0">
+                                                     <iframe 
+                                                        className="w-full h-full"
+                                                        src="https://www.youtube-nocookie.com/embed/bkNXJEtf1yY?si=ZTG6Arw9KeNBtm53" 
+                                                        title="YouTube video player" 
+                                                        frameBorder="0" 
+                                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                                                        referrerPolicy="strict-origin-when-cross-origin" 
+                                                        allowFullScreen
+                                                    ></iframe>
+                                                </div>
+
+                                                <div className="w-full max-w-4xl mx-auto bg-red-50 p-5 xl:p-8 rounded-xl border border-red-200 shadow-sm flex-shrink-0">
+                                                    <h4 className="font-extrabold text-red-800 mb-4 text-base md:text-lg xl:text-2xl flex items-center gap-2">✏️ Cek Pemahaman Detektif</h4>
+                                                    <div className="space-y-4 xl:space-y-6">
+                                                        {VIDEO1_QUESTIONS.map((q) => (
+                                                            <div key={q.id} className="bg-white p-4 xl:p-6 rounded-xl border border-red-200 shadow-sm">
+                                                                <p className="font-bold text-gray-800 mb-3 text-sm md:text-base xl:text-xl whitespace-pre-wrap">{q.text}</p>
+                                                                <div className="space-y-2 xl:space-y-3">
+                                                                    {q.options.map((opt, oIdx) => {
+                                                                        const isSelected = videoAnswersTabel[q.id] === oIdx;
+                                                                        const isCorrect = q.correct === oIdx;
+                                                                        const showResult = videoQuizSubmittedTabel;
+                                                                        
+                                                                        let btnClass = "w-full text-left p-3 xl:p-4 rounded-lg border-2 text-sm md:text-base xl:text-lg font-medium transition-all flex items-start gap-3 ";
+                                                                        if (showResult) {
+                                                                            if (isCorrect) btnClass += "bg-green-50 border-green-500 text-green-800 font-bold";
+                                                                            else if (isSelected && !isCorrect) btnClass += "bg-red-50 border-red-500 text-red-800 line-through";
+                                                                            else btnClass += "bg-gray-50 border-gray-200 text-gray-500";
+                                                                        } else {
+                                                                            btnClass += isSelected ? "bg-red-600 border-red-700 text-white shadow-inner" : "bg-white border-gray-300 text-gray-700 hover:border-red-400 hover:bg-red-50";
+                                                                        }
+
+                                                                        return (
+                                                                            <button key={oIdx} disabled={videoQuizSubmittedTabel} onClick={() => setVideoAnswersTabel(prev => ({...prev, [q.id]: oIdx}))} className={btnClass}>
+                                                                                <span className="flex-1 leading-snug">{opt}</span>
+                                                                                {showResult && isCorrect && <Icons.CheckCircle className="w-5 h-5 xl:w-6 xl:h-6 text-green-600 flex-shrink-0" />}
+                                                                                {showResult && isSelected && !isCorrect && <Icons.X className="w-5 h-5 xl:w-6 xl:h-6 text-red-600 flex-shrink-0" />}
+                                                                            </button>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    {!videoQuizSubmittedTabel ? (
+                                                        <button 
+                                                            onClick={() => {
+                                                                setVideoQuizSubmittedTabel(true);
+                                                                const isAllCorrect = VIDEO1_QUESTIONS.every(q => videoAnswersTabel[q.id] === q.correct);
+                                                                if (isAllCorrect) playSfx('correct'); else playSfx('incorrect');
+                                                            }}
+                                                            disabled={Object.keys(videoAnswersTabel).length < VIDEO1_QUESTIONS.length}
+                                                            className="mt-6 bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:text-gray-500 disabled:shadow-none text-white font-black py-3 px-6 xl:py-4 xl:px-8 rounded-xl w-full transition-all text-sm md:text-base xl:text-xl shadow-[0_4px_0_#991b1b] active:shadow-none active:translate-y-1"
+                                                        >
+                                                            Kunci Jawaban
+                                                        </button>
+                                                    ) : (
+                                                        <div className="mt-6 text-center bg-white p-4 rounded-xl border border-red-200">
+                                                            <p className="font-bold text-gray-800 mb-3 text-sm md:text-base xl:text-xl">Latihan selesai! Evaluasi jawabanmu.</p>
+                                                            <button onClick={() => {setVideoAnswersTabel({}); setVideoQuizSubmittedTabel(false);}} className="text-red-600 font-bold underline hover:text-red-800 text-sm md:text-base xl:text-lg">
+                                                                <Icons.RefreshCcw className="inline w-4 h-4 mr-1 mb-0.5" /> Ulangi Latihan
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                          )}
+
+                                          {activeVideoTab === 'diagram' && (
+                                            <div className="animate-fade-in space-y-6">
+                                                <div className="w-full max-w-4xl mx-auto bg-red-50 border-l-4 border-red-600 p-4 xl:p-6 rounded-xl shadow-sm flex items-center gap-3">
+                                                    <Icons.BookOpen className="w-6 h-6 xl:w-8 xl:h-8 text-red-700 flex-shrink-0" />
+                                                    <p className="text-sm md:text-base xl:text-xl font-bold text-red-900">Pelajari cara membaca dan menganalisis data menggunakan Diagram Batang.</p>
+                                                </div>
+                                                
+                                                <div className="w-full max-w-4xl mx-auto aspect-video bg-gray-800 rounded-2xl overflow-hidden shadow-lg border-4 border-red-300 flex items-center justify-center relative flex-shrink-0">
+                                                     <iframe 
+                                                        className="w-full h-full"
+                                                        src="https://www.youtube-nocookie.com/embed/Pi5AddkqgsA?si=BalJQtCgyNx59Ypm" 
+                                                        title="YouTube video player" 
+                                                        frameBorder="0" 
+                                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                                                        referrerPolicy="strict-origin-when-cross-origin" 
+                                                        allowFullScreen
+                                                    ></iframe>
+                                                </div>
+
+                                                <div className="w-full max-w-4xl mx-auto bg-red-50 p-5 xl:p-8 rounded-xl border border-red-200 shadow-sm flex-shrink-0">
+                                                    <h4 className="font-extrabold text-red-800 mb-4 text-base md:text-lg xl:text-2xl flex items-center gap-2">✏️ Cek Pemahaman Detektif</h4>
+                                                    <div className="space-y-4 xl:space-y-6">
+                                                        {VIDEO2_QUESTIONS.map((q) => (
+                                                            <div key={q.id} className="bg-white p-4 xl:p-6 rounded-xl border border-red-200 shadow-sm">
+                                                                <p className="font-bold text-gray-800 mb-3 text-sm md:text-base xl:text-xl whitespace-pre-wrap">{q.text}</p>
+                                                                <div className="space-y-2 xl:space-y-3">
+                                                                    {q.options.map((opt, oIdx) => {
+                                                                        const isSelected = videoAnswersDiagram[q.id] === oIdx;
+                                                                        const isCorrect = q.correct === oIdx;
+                                                                        const showResult = videoQuizSubmittedDiagram;
+                                                                        
+                                                                        let btnClass = "w-full text-left p-3 xl:p-4 rounded-lg border-2 text-sm md:text-base xl:text-lg font-medium transition-all flex items-start gap-3 ";
+                                                                        if (showResult) {
+                                                                            if (isCorrect) btnClass += "bg-green-50 border-green-500 text-green-800 font-bold";
+                                                                            else if (isSelected && !isCorrect) btnClass += "bg-red-50 border-red-500 text-red-800 line-through";
+                                                                            else btnClass += "bg-gray-50 border-gray-200 text-gray-500";
+                                                                        } else {
+                                                                            btnClass += isSelected ? "bg-red-600 border-red-700 text-white shadow-inner" : "bg-white border-gray-300 text-gray-700 hover:border-red-400 hover:bg-red-50";
+                                                                        }
+
+                                                                        return (
+                                                                            <button key={oIdx} disabled={videoQuizSubmittedDiagram} onClick={() => setVideoAnswersDiagram(prev => ({...prev, [q.id]: oIdx}))} className={btnClass}>
+                                                                                <span className="flex-1 leading-snug">{opt}</span>
+                                                                                {showResult && isCorrect && <Icons.CheckCircle className="w-5 h-5 xl:w-6 xl:h-6 text-green-600 flex-shrink-0" />}
+                                                                                {showResult && isSelected && !isCorrect && <Icons.X className="w-5 h-5 xl:w-6 xl:h-6 text-red-600 flex-shrink-0" />}
+                                                                            </button>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    {!videoQuizSubmittedDiagram ? (
+                                                        <button 
+                                                            onClick={() => {
+                                                                setVideoQuizSubmittedDiagram(true);
+                                                                const isAllCorrect = VIDEO2_QUESTIONS.every(q => videoAnswersDiagram[q.id] === q.correct);
+                                                                if (isAllCorrect) playSfx('correct'); else playSfx('incorrect');
+                                                            }}
+                                                            disabled={Object.keys(videoAnswersDiagram).length < VIDEO2_QUESTIONS.length}
+                                                            className="mt-6 bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:text-gray-500 disabled:shadow-none text-white font-black py-3 px-6 xl:py-4 xl:px-8 rounded-xl w-full transition-all text-sm md:text-base xl:text-xl shadow-[0_4px_0_#991b1b] active:shadow-none active:translate-y-1"
+                                                        >
+                                                            Kunci Jawaban
+                                                        </button>
+                                                    ) : (
+                                                        <div className="mt-6 text-center bg-white p-4 rounded-xl border border-red-200">
+                                                            <p className="font-bold text-gray-800 mb-3 text-sm md:text-base xl:text-xl">Latihan selesai! Evaluasi jawabanmu.</p>
+                                                            <button onClick={() => {setVideoAnswersDiagram({}); setVideoQuizSubmittedDiagram(false);}} className="text-red-600 font-bold underline hover:text-red-800 text-sm md:text-base xl:text-lg">
+                                                                <Icons.RefreshCcw className="inline w-4 h-4 mr-1 mb-0.5" /> Ulangi Latihan
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                          )}
+                                      </div>
+                                  )}
+
+                                  {activeTab === 'latihan' && (
+                                      <div className="w-full flex flex-col animate-fade-in space-y-6 pb-4">
+                                          <div className="w-full max-w-4xl mx-auto bg-green-50 border-l-4 border-green-600 p-4 xl:p-6 rounded-xl shadow-sm flex items-center gap-3">
+                                              <Icons.BookOpen className="w-6 h-6 xl:w-8 xl:h-8 text-green-700 flex-shrink-0" />
+                                              <p className="text-sm md:text-base xl:text-xl font-bold text-green-900">Pasangkan deskripsi dengan istilah pengolahan data yang tepat dengan cara menarik kotaknya!</p>
+                                          </div>
+
+                                          <div className="w-full max-w-4xl mx-auto bg-green-50 p-5 xl:p-8 rounded-xl border border-green-200 shadow-sm flex-shrink-0">
+                                              <h4 className="font-extrabold text-green-800 mb-4 text-base md:text-lg xl:text-2xl flex items-center gap-2">✏️ Latihan Jodohkan Istilah Data</h4>
+
+                                              <div className="bg-white p-4 rounded-xl border-2 border-dashed border-green-400 mb-6 flex flex-wrap gap-3 justify-center min-h-[80px]">
+                                                  {shuffledPodcastOptions.map(opt => {
+                                                      const isDropped = Object.values(podcastDropped).find(d => d.id === opt.id);
+                                                      if (isDropped) return null;
+                                                      return (
+                                                          <div 
+                                                              key={opt.id} draggable onDragStart={(e) => handlePodcastDragStart(e, opt)} onClick={() => handlePodcastOptClick(opt)}
+                                                              className={`px-4 py-2 rounded-lg border-2 font-bold text-sm md:text-base cursor-grab active:cursor-grabbing shadow-sm transition-all select-none max-w-xs text-center ${podcastSelected?.id === opt.id ? 'bg-green-600 border-green-700 text-white scale-105' : 'bg-white text-gray-700 border-green-400 hover:bg-green-100'}`}
+                                                          >
+                                                              {opt.text}
+                                                          </div>
+                                                      )
+                                                  })}
+                                                  {Object.keys(podcastDropped).length === PODCAST_QUESTIONS.length && <span className="text-gray-500 font-medium my-auto text-sm md:text-base w-full text-center mt-2">Semua deskripsi telah terisi.</span>}
+                                              </div>
+
+                                              <div className="space-y-4 xl:space-y-6">
+                                                  {PODCAST_QUESTIONS.map((q, idx) => (
+                                                      <div key={q.id} className="bg-white p-4 xl:p-6 rounded-xl border border-green-300 shadow-sm flex flex-col md:flex-row gap-4 xl:gap-6">
+                                                          <div className="flex-1">
+                                                              <span className="font-black text-green-700 text-xs md:text-sm uppercase tracking-wider block mb-2">Misteri {idx + 1}</span>
+                                                              <p className="font-bold text-gray-800 text-sm md:text-base xl:text-lg leading-relaxed">{q.text}</p>
+                                                          </div>
+                                                          <div 
+                                                              className={`flex-1 min-h-[80px] border-2 border-dashed rounded-xl p-3 flex items-center justify-center transition-all cursor-pointer relative ${podcastDragOver === q.id ? 'bg-green-100 border-green-600 scale-[1.02]' : 'bg-gray-50 border-gray-300 hover:border-green-400'} ${podcastDropped[q.id] ? 'bg-green-50 border-green-500 border-solid' : ''}`}
+                                                              onDragOver={(e) => { e.preventDefault(); setPodcastDragOver(q.id); }} onDragLeave={() => setPodcastDragOver(null)} onDrop={(e) => handlePodcastDrop(e, q.id)} onClick={() => handlePodcastTargetClick(q.id)}
+                                                          >
+                                                              {podcastDropped[q.id] ? (
+                                                                  <div className="text-center relative w-full group p-2">
+                                                                      <span className="font-bold text-green-900 text-sm md:text-base">{podcastDropped[q.id].text}</span>
+                                                                      {!podcastSubmitted && (
+                                                                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-white/90 transition-opacity rounded-lg">
+                                                                              <Icons.X className="w-6 h-6 text-red-500 drop-shadow-md" />
+                                                                          </div>
+                                                                      )}
+                                                                  </div>
+                                                              ) : (
+                                                                  <span className="text-gray-400 font-medium text-sm md:text-base text-center">Letakkan jawaban di sini</span>
+                                                              )}
+                                                          </div>
+                                                      </div>
+                                                  ))}
+                                              </div>
+
+                                              {!podcastSubmitted ? (
+                                                  <div className="mt-8 flex flex-col items-center">
+                                                      {podcastFeedback && <p className="text-red-600 font-bold text-sm md:text-base xl:text-xl mb-4 bg-red-100 px-5 py-3 rounded-xl border border-red-200 text-center w-full">{podcastFeedback}</p>}
+                                                      <button onClick={checkPodcastAnswer} className="bg-green-600 hover:bg-green-700 text-white font-black py-3 px-6 xl:py-4 xl:px-10 rounded-xl w-full transition-all text-base md:text-lg xl:text-xl shadow-[0_4px_0_#166534] active:shadow-none active:translate-y-1 flex items-center justify-center gap-2">
+                                                          <Icons.CheckCircle className="w-5 h-5 xl:w-6 xl:h-6" /> Kunci Jawaban
+                                                      </button>
+                                                  </div>
+                                              ) : (
+                                                  <div className="mt-8 text-center bg-white p-5 rounded-xl border border-green-300 shadow-sm">
+                                                      <p className="font-bold text-green-800 mb-3 text-base md:text-lg xl:text-xl flex items-center justify-center gap-2">
+                                                          <Icons.CheckCircle className="w-6 h-6 xl:w-8 xl:h-8" /> Analisis sempurna! Semua pasangan tepat.
+                                                      </p>
+                                                      <button onClick={() => {setPodcastDropped({}); setPodcastSubmitted(false); setPodcastFeedback("");}} className="text-green-700 font-bold underline hover:text-green-900 text-sm md:text-base xl:text-lg mt-2 inline-flex items-center gap-1">
+                                                          <Icons.RefreshCcw className="w-4 h-4" /> Ulangi Latihan
+                                                      </button>
+                                                  </div>
+                                              )}
+                                          </div>
+                                      </div>
+                                  )}
+
+                                  {activeTab === 'artikel' && (
+                                      <div className="space-y-4 xl:space-y-6 animate-fade-in pb-2 max-w-4xl mx-auto">
+                                          <h3 className="text-xl md:text-3xl xl:text-4xl font-extrabold text-blue-900 text-center mb-4 xl:mb-6">Rangkuman Pengolahan Data</h3>
+                                          <div className="space-y-4 md:space-y-5 xl:space-y-6">
+                                              <div className="bg-yellow-50 p-4 xl:p-6 rounded-xl border border-yellow-200 shadow-sm">
+                                                  <h4 className="font-extrabold text-yellow-800 mb-2 text-sm md:text-base xl:text-2xl flex items-center gap-2">📊 Apa itu Data?</h4>
+                                                  <p className="text-xs md:text-sm xl:text-lg text-gray-800 leading-relaxed font-medium">Data adalah keterangan yang benar dan nyata yang diperoleh dari suatu pengamatan atau penelitian. Data bisa dikumpulkan dengan wawancara, angket, atau pencatatan langsung.</p>
+                                                  <div className="mt-3 bg-white p-3 rounded-lg border border-yellow-300">
+                                                      <strong className="text-yellow-900 text-xs md:text-sm xl:text-base">Contoh:</strong>
+                                                      <p className="text-xs md:text-sm xl:text-base text-gray-700 mt-1">Data tinggi badan siswa kelas 5, data warna kesukaan, atau data nilai ulangan Matematika.</p>
+                                                  </div>
+                                              </div>
+                                              <div className="bg-sky-50 p-4 xl:p-6 rounded-xl border border-sky-200 shadow-sm">
+                                                  <h4 className="font-extrabold text-sky-800 mb-2 text-sm md:text-base xl:text-2xl flex items-center gap-2">📋 Tabel Frekuensi & Turus</h4>
+                                                  <p className="text-xs md:text-sm xl:text-lg text-gray-800 leading-relaxed font-medium mb-2">Tabel Frekuensi digunakan untuk menyajikan data dalam bentuk baris dan kolom. Untuk memudahkan menghitung jumlah, kita menggunakan <b>Turus (Tally)</b>, yaitu garis tegak (contoh: 卌 berarti 5).</p>
+                                                  <div className="mt-3 bg-white p-3 rounded-lg border border-sky-300">
+                                                      <strong className="text-sky-900 text-xs md:text-sm xl:text-base">Contoh:</strong>
+                                                      <p className="text-xs md:text-sm xl:text-base text-gray-700 mt-1">Dalam mendata buah favorit:<br/>Apel | 卌 | 5 siswa<br/>Jeruk | 卌 || | 7 siswa</p>
+                                                  </div>
+                                              </div>
+                                              <div className="bg-purple-50 p-4 xl:p-6 rounded-xl border border-purple-200 shadow-sm">
+                                                  <h4 className="font-extrabold text-purple-800 mb-2 text-sm md:text-base xl:text-2xl flex items-center gap-2">🖼️ Piktogram (Diagram Gambar)</h4>
+                                                  <p className="text-xs md:text-sm xl:text-lg text-gray-800 leading-relaxed font-medium mb-2">Piktogram menyajikan data menggunakan gambar atau simbol. Sangat penting untuk melihat <b>Keterangan</b> pada piktogram karena satu simbol bisa mewakili lebih dari satu benda.</p>
+                                                  <div className="mt-3 bg-white p-3 rounded-lg border border-purple-300">
+                                                      <strong className="text-purple-900 text-xs md:text-sm xl:text-base">Contoh:</strong>
+                                                      <p className="text-xs md:text-sm xl:text-base text-gray-700 mt-1">Jika keterangan menyebutkan bahwa 1 gambar buku (📘) mewakili 10 buku nyata. Maka jika ada 3 gambar buku (📘📘📘), artinya ada 3 x 10 = 30 buku.</p>
+                                                  </div>
+                                              </div>
+                                              <div className="bg-orange-50 p-4 xl:p-6 rounded-xl border border-orange-200 shadow-sm">
+                                                  <h4 className="font-extrabold text-orange-800 mb-2 text-sm md:text-base xl:text-2xl flex items-center gap-2">📈 Diagram Batang</h4>
+                                                  <p className="text-xs md:text-sm xl:text-lg text-gray-800 leading-relaxed font-medium mb-2">Menyajikan data dalam bentuk batang persegi panjang. <b>Sumbu mendatar</b> biasanya berisi jenis data (misal: nama hari, jenis hewan). <b>Sumbu tegak</b> berisi angka jumlah/frekuensi. Batang tertinggi menunjukkan jumlah terbanyak.</p>
+                                                  <div className="mt-3 bg-white p-3 rounded-lg border border-orange-300">
+                                                      <strong className="text-orange-900 text-xs md:text-sm xl:text-base">Contoh:</strong>
+                                                      <p className="text-xs md:text-sm xl:text-base text-gray-700 mt-1">Pada diagram batang, jika tinggi batang ekstrakurikuler "Pramuka" sejajar dengan angka 25 di sumbu tegak, berarti ada 25 siswa yang mengikuti Pramuka.</p>
+                                                  </div>
+                                              </div>
+                                          </div>
+                                      </div>
+                                  )}
+                              </div>
+                          </div>
+                      )}
+
+                      <div className="mt-4 pt-4 border-t border-amber-200 text-center flex-shrink-0">
+                          <button onClick={onNext} className="bg-gradient-to-b from-blue-600 to-blue-700 text-white font-black hover:from-blue-500 hover:to-blue-600 transition-all border-b-4 border-blue-900 active:border-b-0 py-3 px-8 xl:py-4 xl:px-10 text-base md:text-lg xl:text-2xl rounded-full shadow-lg active:shadow-none active:translate-y-1 inline-flex items-center gap-2">
+                              Menuju Peta Kepulauan <Icons.Map className="w-5 h-5 xl:w-7 xl:h-7" />
+                          </button>
+                      </div>
+                  </div>
+                </div>
+            );
+        }
+
+        // --- MAP SCREEN COMPONENT ---
+        function MapScreen({ unlockedLevel, onLevelSelect, onFinish, isCompleted }) {
+            return (
+                <div className="flex flex-col flex-1 w-full max-w-5xl xl:max-w-6xl max-h-[80vh] min-h-[400px] animate-fade-in relative mx-auto my-auto shadow-2xl rounded-3xl border-8 border-white/80 overflow-hidden bg-blue-100 backdrop-blur-sm"
+                     style={{ 
+                         backgroundImage: `url(${BG_MAP})`, 
+                         backgroundSize: '100% 100%', 
+                         backgroundPosition: 'center',
+                         backgroundRepeat: 'no-repeat'
+                     }}>
+                  
+                  <div className="absolute top-4 left-4 md:top-6 md:left-6 z-10 bg-white/95 backdrop-blur px-4 py-3 md:px-5 md:py-4 rounded-xl shadow-lg border-l-4 md:border-l-8 border-amber-500">
+                    <h2 className="font-bold text-amber-900 text-sm md:text-xl tracking-wide">Peta Kepulauan Misteri</h2>
+                    <p className="text-xs md:text-sm text-gray-600 font-medium mt-1">Pilih Pulau yang terbuka untuk investigasi!</p>
+                  </div>
+
+                  <div className="relative w-full h-full">
+                    {MAP_POSITIONS.map((pos) => {
+                      const isUnlocked = pos.level <= unlockedLevel;
+                      const isCurrent = pos.level === unlockedLevel;
+                      
+                      return (
+                        <button key={pos.level} onClick={() => isUnlocked ? onLevelSelect(pos.level) : null} disabled={!isUnlocked} style={{ top: pos.top, left: pos.left }}
+                          className={`absolute transform -translate-x-1/2 -translate-y-1/2 w-14 h-14 md:w-20 md:h-20 xl:w-24 xl:h-24 rounded-full flex items-center justify-center border-4 md:border-[6px] shadow-xl transition-all duration-300 z-20 group/btn
+                            ${isCurrent ? 'scale-110 animate-bounce-slow ring-4 ring-amber-400 border-white bg-blue-600 text-white' : 'hover:scale-110 border-white'}
+                            ${isUnlocked && !isCurrent ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white cursor-pointer' : ''}
+                            ${!isUnlocked ? 'bg-gray-300 border-gray-400 text-gray-500 cursor-not-allowed opacity-80' : ''}
+                          `}
+                        >
+                          {isUnlocked ? (
+                            <span className="font-extrabold text-2xl md:text-3xl xl:text-4xl drop-shadow-md">{pos.level}</span>
+                          ) : (
+                            <Icons.Lock className="w-5 h-5 md:w-8 md:h-8 opacity-50" />
+                          )}
+                          <div className="absolute -bottom-10 xl:-bottom-12 left-1/2 transform -translate-x-1/2 bg-white px-3 py-1.5 xl:px-4 xl:py-2 rounded-full text-[10px] md:text-sm xl:text-base font-bold whitespace-nowrap shadow-md border-2 border-gray-200 text-gray-800 opacity-0 group-hover/btn:opacity-100 transition-opacity pointer-events-none">
+                            {LEVEL_DATA[pos.level].title}
+                          </div>
+                        </button>
+                      );
+                    })}
+
+                    {isCompleted && (
+                      <button onClick={onFinish} className="absolute bottom-8 right-8 md:bottom-12 md:right-12 bg-gradient-to-r from-amber-400 to-orange-600 text-white font-bold py-3 px-6 md:py-4 md:px-8 xl:py-5 xl:px-10 rounded-full shadow-lg flex items-center gap-3 animate-pulse z-30 transform hover:scale-105 transition border-2 border-white text-sm md:text-base xl:text-xl">
+                        <Icons.Award className="w-5 h-5 md:w-7 md:h-7 xl:w-8 xl:h-8" /> <span>Lapor ke Markas</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+            );
+        }
+
+        // --- LEVEL 1 (Drag & Drop Klasifikasi Data) ---
+        function Level1Sumatera({ onComplete, onCorrect }) {
+            const data = LEVEL_DATA[1];
+            const shuffledItems = useMemo(() => shuffleArray(data.items), [data.items]);
+            
+            const [droppedItems, setDroppedItems] = useState({}); 
+            const [completed, setCompleted] = useState(false);
+            const [dragOverTarget, setDragOverTarget] = useState(null);
+            const [selectedItem, setSelectedItem] = useState(null);
+            const [feedbackMsg, setFeedbackMsg] = useState("");
+
+            const handleDragStart = (e, item) => { e.dataTransfer.setData("item", JSON.stringify(item)); };
+            const handleDragOver = (e, targetId) => { e.preventDefault(); setDragOverTarget(targetId); };
+            const handleDragLeave = (e) => { e.preventDefault(); setDragOverTarget(null); }
+            const handleDrop = (e, target) => {
+                e.preventDefault(); 
+                setDragOverTarget(null);
+                const itemData = e.dataTransfer.getData("item");
+                if (itemData) {
+                    const item = JSON.parse(itemData);
+                    setDroppedItems(prev => ({ ...prev, [item.id]: target.id }));
+                    setFeedbackMsg("");
+                }
+            };
+
+            const handleRemoveItem = (itemId) => {
+                setDroppedItems(prev => { const newItems = { ...prev }; delete newItems[itemId]; return newItems; });
+                setFeedbackMsg("");
+            };
+
+            const handleItemClick = (item) => { setSelectedItem(selectedItem?.id === item.id ? null : item); };
+            const handleTargetClick = (target) => { 
+                if (selectedItem) {
+                    setDroppedItems(prev => ({ ...prev, [selectedItem.id]: target.id }));
+                    setSelectedItem(null);
+                    setFeedbackMsg("");
+                } 
+            };
+
+            const handleCheckAnswer = () => {
+                let isAllCorrect = true;
+                data.items.forEach(item => { if (droppedItems[item.id] !== item.matchId) isAllCorrect = false; });
+
+                if (isAllCorrect) {
+                    playSfx('correct');
+                    for(let i=0; i<6; i++) { if (onCorrect) onCorrect(); }
+                    setCompleted(true);
+                } else {
+                    playSfx('incorrect');
+                    setFeedbackMsg("Oops! Ada bentuk penyajian yang salah kotak. Coba teliti lagi!");
+                }
+            };
+
+            const allItemsDropped = Object.keys(droppedItems).length === data.items.length;
+
+            return (
+                <div className="flex flex-col h-full w-full max-w-7xl mx-auto flex-1 min-h-0 bg-white/95 backdrop-blur-md rounded-3xl shadow-xl p-4 md:p-6 border-4 border-lime-300">
+                  {!completed ? (
+                    <div className="flex flex-col flex-1 min-h-0 animate-fade-in">
+                        <div className="bg-lime-100 p-3 xl:p-4 rounded-xl border-l-4 border-lime-500 text-center text-sm md:text-base xl:text-xl font-bold text-lime-900 mb-4 shadow-sm flex-shrink-0">
+                            💡 {data.instruction}
+                        </div>
+                        
+                        <div className="flex flex-col md:flex-row gap-4 xl:gap-8 flex-1 min-h-0">
+                          <div className="flex-1 md:w-1/2 flex flex-col min-h-0 overflow-y-auto custom-scrollbar pr-2">
+                            <div className="grid grid-cols-3 md:grid-cols-2 lg:grid-cols-3 gap-3 p-3 xl:p-4 bg-white/90 rounded-2xl border-2 border-dashed border-gray-300 min-h-[200px]">
+                              {shuffledItems.map(item => (
+                                !droppedItems[item.id] && (
+                                  <div key={item.id} draggable onDragStart={(e) => handleDragStart(e, item)} onClick={() => handleItemClick(item)}
+                                    className={`p-3 xl:p-4 rounded-xl border-2 text-center aspect-square flex flex-col items-center justify-center cursor-grab active:cursor-grabbing select-none bg-white shadow-sm hover:shadow-md ${selectedItem?.id === item.id ? 'border-lime-500 bg-lime-50 scale-105' : 'border-gray-200'}`}
+                                  >
+                                    <div className="h-1/2 md:h-2/3 w-full flex items-center justify-center mb-1">
+                                        <span className="text-3xl xl:text-5xl">{item.icon}</span>
+                                    </div>
+                                    <span className="font-bold text-[10px] md:text-xs xl:text-sm text-gray-700 pointer-events-none leading-tight">{item.text}</span>
+                                  </div>
+                                )
+                              ))}
+                              {allItemsDropped && <p className="col-span-3 md:col-span-2 lg:col-span-3 text-center text-gray-400 font-bold text-base xl:text-xl mt-6">Semua berkas telah diklasifikasikan.</p>}
+                            </div>
+                          </div>
+                          
+                          <div className="flex-1 md:w-1/2 flex flex-col min-h-0 overflow-y-auto custom-scrollbar pr-2">
+                            <div className="grid grid-cols-1 gap-4">
+                              {data.targets.map(target => (
+                                <div key={target.id} onDragOver={(e) => handleDragOver(e, target.id)} onDragLeave={handleDragLeave} onDrop={(e) => handleDrop(e, target)} onClick={() => handleTargetClick(target)}
+                                  className={`w-full p-4 xl:p-6 rounded-xl border-4 flex flex-col justify-start items-start transition-all min-h-[140px] xl:min-h-[180px] cursor-pointer ${dragOverTarget === target.id ? 'bg-lime-100 border-lime-400 scale-[1.02]' : 'bg-white border-dashed border-gray-300'}`}
+                                >
+                                  <span className="font-black text-gray-800 text-sm md:text-lg xl:text-2xl mb-3 border-b-2 pb-2 w-full">{target.label}</span>
+                                  <div className="flex gap-2 flex-wrap justify-start w-full">
+                                    {data.items.filter(i => droppedItems[i.id] === target.id).map(i => (
+                                      <div key={i.id} title={`${i.text} (Klik untuk mengembalikan)`} onClick={(e) => { e.stopPropagation(); handleRemoveItem(i.id); }} className="w-auto px-3 py-2 bg-blue-100 text-blue-900 font-bold rounded-lg border border-blue-300 shadow-sm animate-pop-in cursor-pointer hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-colors flex items-center gap-2 text-xs md:text-sm">
+                                         <span>{i.icon}</span> {i.text} ✕
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {allItemsDropped && (
+                            <div className="mt-4 flex flex-col items-center flex-shrink-0 animate-fade-in">
+                                {feedbackMsg && <p className="text-red-600 font-bold text-sm md:text-base xl:text-xl mb-3 bg-red-100 px-5 py-3 rounded-xl border border-red-200 text-center">{feedbackMsg}</p>}
+                                <button onClick={handleCheckAnswer} className="bg-gradient-to-b from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-black py-3 px-10 xl:py-4 xl:px-14 rounded-2xl shadow-[0_6px_0_#1e3a8a] active:shadow-none active:translate-y-2 transition-all text-lg xl:text-2xl flex items-center justify-center gap-3">
+                                    <Icons.CheckCircle className="w-6 h-6 xl:w-8 xl:h-8" /> Periksa Klasifikasi
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                  ) : (
+                    <div className="bg-white/95 p-6 md:p-10 xl:p-14 rounded-3xl shadow-xl text-center space-y-5 border border-lime-200 max-w-3xl mx-auto animate-fade-in my-auto">
+                      <div className="w-16 h-16 md:w-20 md:h-20 xl:w-28 xl:h-28 bg-lime-100 rounded-full flex items-center justify-center mx-auto text-3xl md:text-4xl xl:text-6xl shadow-inner border-4 border-lime-300">🕵️</div>
+                      <div>
+                          <h3 className="text-xl md:text-3xl xl:text-4xl font-black text-lime-800 uppercase tracking-wider mb-2">Hebat!</h3>
+                          <p className="text-base md:text-lg xl:text-2xl font-bold text-gray-700 leading-relaxed">Kamu berhasil membedakan cara penyajian data Matematika.</p>
+                      </div>
+                      <button onClick={onComplete} className="bg-gradient-to-b from-lime-500 to-lime-600 hover:from-lime-400 hover:to-lime-500 text-white font-black w-full py-4 xl:py-5 text-lg md:text-xl xl:text-3xl rounded-2xl shadow-[0_6px_0_#4d7c0f] active:shadow-none active:translate-y-2 transition-all">Lanjut ke Pulau Jawa 🚀</button>
+                    </div>
+                  )}
+                </div>
+            );
+        }
+
+        // --- LEVEL 2: TABEL (Pilihan Ganda) ---
+        function Level2Jawa({ onComplete, onCorrect }) {
+            const data = LEVEL_DATA[2];
+            const [answers, setAnswers] = useState({});
+            const [step, setStep] = useState('quiz'); 
+            const [currentQIndex, setCurrentQIndex] = useState(0);
+            const [scoreDetails, setScoreDetails] = useState(0);
+
+            const flatQuestions = React.useMemo(() => {
+                const arr = [];
+                data.parts.forEach(part => {
+                    part.questions.forEach(q => {
+                        const originalOptions = [...q.options];
+                        const shuffledOptions = shuffleArray(originalOptions);
+                        
+                        let newCorrect;
+                        if (q.type === 'single') {
+                            newCorrect = shuffledOptions.indexOf(originalOptions[q.correct]);
+                        } else {
+                            newCorrect = q.correct.map(idx => shuffledOptions.indexOf(originalOptions[idx]));
+                        }
+
+                        arr.push({
+                            ...q,
+                            options: shuffledOptions,
+                            correct: newCorrect,
+                            stimulusTitle: part.stimulusTitle,
+                            stimulusText: part.stimulusText,
+                            stimulusTable: part.stimulusTable
+                        });
+                    });
+                });
+                return arr;
+            }, [data]);
+
+            const currentQ = flatQuestions[currentQIndex];
+
+            const handleSingle = (qId, optIdx) => { setAnswers(prev => ({ ...prev, [qId]: optIdx })); };
+            const handleMultiple = (qId, optIdx) => {
+                setAnswers(prev => {
+                    const current = prev[qId] || [];
+                    if (current.includes(optIdx)) return { ...prev, [qId]: current.filter(x => x !== optIdx) };
+                    return { ...prev, [qId]: [...current, optIdx] }; 
+                });
+            };
+
+            const isCurrentAnswered = currentQ.type === 'single' ? answers[currentQ.id] !== undefined : (answers[currentQ.id] && answers[currentQ.id].length > 1); // min 2 for multiple
+
+            const handleNext = () => { if (currentQIndex < flatQuestions.length - 1) setCurrentQIndex(prev => prev + 1); };
+            const handlePrev = () => { if (currentQIndex > 0) setCurrentQIndex(prev => prev - 1); };
+
+            const handleSubmit = () => {
+                let correctAns = 0;
+                flatQuestions.forEach(q => {
+                    const userAns = answers[q.id];
+                    if (q.type === 'single') {
+                        if (userAns === q.correct) correctAns++;
+                    } else if (q.type === 'multiple') {
+                        if (Array.isArray(userAns) && userAns.length === q.correct.length && userAns.every(val => q.correct.includes(val))) correctAns++;
+                    }
+                });
+
+                if (correctAns === flatQuestions.length) playSfx('correct');
+                else playSfx('incorrect');
+
+                setScoreDetails(correctAns);
+                setStep('feedback');
+            };
+
+            const handleRetry = () => { setAnswers({}); setCurrentQIndex(0); setScoreDetails(0); setStep('quiz'); };
+            const handleProceed = () => { for(let i = 0; i < scoreDetails; i++) { if (onCorrect) onCorrect(); } onComplete(); };
+
+            if (step === 'feedback') {
+                return (
+                    <div className="flex flex-col h-full w-full max-w-5xl mx-auto pb-4 animate-fade-in justify-center">
+                        <div className="bg-white/95 p-6 md:p-10 xl:p-14 rounded-3xl shadow-xl border-4 border-orange-300 text-center mt-4 flex-shrink-0 backdrop-blur-md">
+                            <Icons.Award className="w-16 h-16 xl:w-24 xl:h-24 text-orange-500 mx-auto animate-bounce-slow mb-3" />
+                            <h3 className="text-2xl md:text-3xl xl:text-5xl font-black text-gray-800 mb-3 xl:mb-5">Hasil Analisis Tabel</h3>
+                            <p className="text-lg md:text-xl xl:text-3xl font-bold text-gray-600 mb-6 xl:mb-10">Kamu menjawab <span className="text-orange-600 text-3xl md:text-4xl xl:text-6xl mx-2">{scoreDetails}</span> dari {flatQuestions.length} soal dengan benar!</p>
+                            
+                            <div className="space-y-4 xl:space-y-6 text-left max-h-[40vh] overflow-y-auto custom-scrollbar pr-3 mb-8">
+                                {flatQuestions.map((q) => {
+                                    const userAns = answers[q.id];
+                                    let isCorrect = false;
+                                    if (q.type === 'single') isCorrect = userAns === q.correct;
+                                    else isCorrect = Array.isArray(userAns) && userAns.length === q.correct.length && userAns.every(val => q.correct.includes(val));
+
+                                    return (
+                                        <div key={q.id} className={`p-4 xl:p-6 rounded-xl border-2 ${isCorrect ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}`}>
+                                            <div className="flex gap-3 xl:gap-5 items-start mb-2 xl:mb-4">
+                                                {isCorrect ? <Icons.CheckCircle className="w-6 h-6 xl:w-8 xl:h-8 text-green-600 flex-shrink-0 mt-0.5" /> : <Icons.X className="w-6 h-6 xl:w-8 xl:h-8 text-red-600 flex-shrink-0 mt-0.5" />}
+                                                <p className="font-bold text-gray-800 text-sm md:text-base xl:text-xl">{q.text}</p>
+                                            </div>
+                                            <div className="ml-9 xl:ml-13 space-y-1 xl:space-y-2 text-sm md:text-base xl:text-xl">
+                                                {q.options.map((opt, oIdx) => {
+                                                    const isSelected = q.type === 'single' ? userAns === oIdx : (userAns || []).includes(oIdx);
+                                                    const isCorrectOpt = q.type === 'single' ? q.correct === oIdx : q.correct.includes(oIdx);
+                                                    if (!isSelected && !isCorrectOpt) return null; 
+                                                    
+                                                    let optClass = "text-gray-600"; let icon = "•";
+                                                    if (isCorrectOpt) { optClass = "text-green-700 font-bold"; icon = "✓"; } 
+                                                    else if (isSelected && !isCorrectOpt) { optClass = "text-red-600 line-through"; icon = "✗"; }
+                                                    
+                                                    return (
+                                                        <div key={oIdx} className={`flex gap-3 ${optClass}`}>
+                                                            <span className="w-5">{icon}</span>
+                                                            <span>{opt} {isSelected && !isCorrectOpt ? '(Jawabanmu)' : ''} {isCorrectOpt ? '(Jawaban Benar)' : ''}</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row gap-4 xl:gap-6 justify-center">
+                                {scoreDetails < flatQuestions.length && (
+                                    <button onClick={handleRetry} className="bg-yellow-500 hover:bg-yellow-600 text-white font-black py-3 px-8 xl:py-5 xl:px-12 rounded-2xl shadow-[0_6px_0_#ca8a04] active:shadow-none active:translate-y-2 transition-all text-base md:text-lg xl:text-2xl flex items-center justify-center gap-3">
+                                        <Icons.RefreshCcw className="w-6 h-6 xl:w-8 xl:h-8" /> Teliti Lagi
+                                    </button>
+                                )}
+                                <button onClick={handleProceed} className="bg-gradient-to-b from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 text-white font-black py-3 px-8 xl:py-5 xl:px-12 rounded-2xl shadow-[0_6px_0_#c2410c] active:shadow-none active:translate-y-2 transition-all text-base md:text-lg xl:text-2xl flex items-center justify-center gap-3">
+                                    Lanjut Misi 🚀
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="flex flex-col h-full w-full max-w-7xl mx-auto flex-1 min-h-0 bg-white/95 backdrop-blur-md rounded-3xl shadow-xl p-3 md:p-6 border-4 border-orange-300">
+                   <div className="bg-orange-100 text-orange-900 p-3 xl:p-4 rounded-xl text-center font-bold text-sm md:text-base xl:text-xl border-l-4 border-orange-500 shadow-sm flex items-center justify-center gap-3 mb-4 flex-shrink-0">
+                     <Icons.Search className="w-5 h-5 xl:w-7 xl:h-7" /> Pahami tabel di kiri, lalu pecahkan soal di kanan.
+                   </div>
+
+                   <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col md:flex-row flex-1 min-h-0">
+                       {/* Panel Kiri: Stimulus Tabel */}
+                       <div className="md:w-1/2 bg-orange-50 p-4 md:p-6 xl:p-8 border-b md:border-b-0 md:border-r border-orange-200 flex flex-col min-h-0 overflow-y-auto custom-scrollbar">
+                           <h3 className="font-black text-orange-900 mb-3 xl:mb-5 flex items-center gap-3 text-base md:text-lg xl:text-2xl flex-shrink-0">
+                               {currentQ.stimulusTitle}
+                           </h3>
+                           <p className="text-gray-800 text-sm md:text-base xl:text-lg mb-4 font-medium">
+                               {currentQ.stimulusText}
+                           </p>
+                           {/* Tabel Render */}
+                           <div className="w-full bg-white rounded-xl shadow-sm border border-gray-300 overflow-hidden mt-2">
+                               <table className="w-full text-left border-collapse">
+                                   <thead>
+                                       <tr className="bg-orange-200 text-orange-900 font-bold text-sm md:text-base xl:text-xl">
+                                           <th className="p-3 border-b-2 border-orange-300">Hari</th>
+                                           <th className="p-3 border-b-2 border-orange-300 text-right">Hasil Panen (kg)</th>
+                                       </tr>
+                                   </thead>
+                                   <tbody>
+                                       {currentQ.stimulusTable.map((row, idx) => (
+                                           <tr key={idx} className="border-b border-gray-100 hover:bg-orange-50 text-sm md:text-base xl:text-xl text-gray-800 font-medium">
+                                               <td className="p-3 border-r border-gray-100">{row.hari}</td>
+                                               <td className="p-3 text-right">{row.jumlah}</td>
+                                           </tr>
+                                       ))}
+                                   </tbody>
+                               </table>
+                           </div>
+                       </div>
+                       
+                       {/* Panel Kanan: Soal */}
+                       <div className="md:w-1/2 p-4 md:p-6 xl:p-8 flex flex-col min-h-0 bg-white">
+                           <div className="text-xs md:text-sm xl:text-base font-bold text-gray-500 uppercase tracking-wider mb-1 xl:mb-3 flex-shrink-0">Soal {currentQIndex + 1} dari {flatQuestions.length}</div>
+                           <p className="font-bold text-gray-900 text-base md:text-lg xl:text-2xl leading-relaxed mb-4 xl:mb-6 flex-shrink-0 drop-shadow-sm">{currentQ.text}</p>
+                           
+                           <div className="space-y-3 xl:space-y-4 flex-grow overflow-y-auto custom-scrollbar pr-2">
+                               {currentQ.options.map((opt, oIdx) => {
+                                   const isSelected = currentQ.type === 'single' ? answers[currentQ.id] === oIdx : (answers[currentQ.id] || []).includes(oIdx);
+                                   let btnClass = `w-full text-left px-4 py-3 md:px-5 md:py-4 xl:py-5 rounded-xl border-2 text-sm md:text-base xl:text-xl font-bold transition-all flex items-start gap-4 ${isSelected ? 'border-orange-500 bg-orange-100 shadow-md text-orange-900' : 'border-gray-200 bg-gray-50 hover:bg-orange-50 text-gray-800 shadow-sm'}`;
+                                   const shapeClass = currentQ.type === 'single' ? 'rounded-full' : 'rounded-md';
+
+                                   return (
+                                       <button key={oIdx} onClick={() => currentQ.type === 'single' ? handleSingle(currentQ.id, oIdx) : handleMultiple(currentQ.id, oIdx)} className={btnClass}>
+                                           <div className={`mt-0.5 md:mt-1 flex-shrink-0 w-5 h-5 md:w-6 md:h-6 xl:w-8 xl:h-8 border-2 ${shapeClass} flex items-center justify-center transition-colors ${isSelected ? 'border-orange-600 bg-orange-500' : 'border-gray-300 bg-white'}`}>
+                                               {isSelected && (currentQ.type === 'single' ? <div className="w-2 h-2 md:w-2.5 md:h-2.5 xl:w-3.5 xl:h-3.5 bg-white rounded-full" /> : <Icons.CheckCircle className="w-4 h-4 md:w-5 md:h-5 xl:w-6 xl:h-6 text-white" />)}
+                                           </div>
+                                           <span className="flex-1 leading-snug">{opt}</span>
+                                       </button>
+                                   );
+                               })}
+                           </div>
+
+                           {/* Navigasi Soal */}
+                           <div className="flex justify-between items-center gap-3 mt-4 xl:mt-6 pt-4 border-t border-gray-100 flex-shrink-0">
+                               <button onClick={handlePrev} disabled={currentQIndex === 0} className={`py-3 px-4 xl:py-4 xl:px-6 rounded-2xl font-bold flex items-center gap-2 transition-all text-sm md:text-base xl:text-xl ${currentQIndex === 0 ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white text-gray-800 border-2 border-gray-300 hover:bg-gray-50 shadow-sm'}`}>
+                                   <Icons.ArrowRight className="w-5 h-5 xl:w-7 xl:h-7 rotate-180" /> <span className="hidden sm:inline">Sebelumnya</span>
+                               </button>
+                               
+                               {currentQIndex < flatQuestions.length - 1 ? (
+                                   <button onClick={handleNext} disabled={!isCurrentAnswered} className={`py-3 px-6 xl:py-4 xl:px-10 rounded-2xl font-black flex items-center gap-2 transition-all text-sm md:text-base xl:text-xl ${!isCurrentAnswered ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-[0_5px_0_#1e3a8a] active:shadow-none active:translate-y-1'}`}>
+                                       <span className="hidden sm:inline">Selanjutnya</span> <Icons.ArrowRight className="w-5 h-5 xl:w-7 xl:h-7" />
+                                   </button>
+                               ) : (
+                                   <button onClick={handleSubmit} disabled={!isCurrentAnswered} className={`py-3 px-6 xl:py-4 xl:px-10 rounded-2xl font-black flex items-center gap-2 transition-all text-sm md:text-base xl:text-xl ${!isCurrentAnswered ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-gradient-to-b from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-[0_5px_0_#9a3412] active:shadow-none active:translate-y-1'}`}>
+                                       <Icons.CheckCircle className="w-5 h-5 xl:w-7 xl:h-7" /> Kumpulkan
+                                   </button>
+                               )}
+                           </div>
+                       </div>
+                   </div>
+                </div>
+            );
+        }
+
+        // --- LEVEL 3: PIKTOGRAM (Benar/Salah) ---
+        function Level3Kalimantan({ onComplete, onCorrect }) {
+            const data = LEVEL_DATA[3];
+            const [answers, setAnswers] = useState({});
+            const [step, setStep] = useState('quiz'); 
+            const [currentQIndex, setCurrentQIndex] = useState(0);
+            const [scoreDetails, setScoreDetails] = useState(0);
+
+            const shuffledQuestions = React.useMemo(() => {
+                return data.questions.map(q => {
+                    const originalReasons = [...q.reasonOptions];
+                    const shuffledReasons = shuffleArray(originalReasons);
+                    const correctReasonText = originalReasons[q.correctReasonIndex];
+                    const newCorrectReasonIndex = shuffledReasons.indexOf(correctReasonText);
+
+                    return {
+                        ...q,
+                        reasonOptions: shuffledReasons,
+                        correctReasonIndex: newCorrectReasonIndex
+                    };
+                });
+            }, [data.questions]);
+
+            const currentQ = shuffledQuestions[currentQIndex];
+
+            const handleStatement = (qId, statement) => { setAnswers(prev => ({ ...prev, [qId]: { ...prev[qId], statement } })); };
+            const handleReason = (qId, reasonIdxStr) => {
+                const reasonIdx = parseInt(reasonIdxStr);
+                setAnswers(prev => ({ ...prev, [qId]: { ...prev[qId], reasonIdx } }));
+            };
+
+            const isCurrentAnswered = answers[currentQ.id]?.statement !== undefined && answers[currentQ.id]?.reasonIdx !== undefined && !isNaN(answers[currentQ.id]?.reasonIdx);
+
+            const handleNext = () => { if (currentQIndex < shuffledQuestions.length - 1) setCurrentQIndex(prev => prev + 1); };
+            const handlePrev = () => { if (currentQIndex > 0) setCurrentQIndex(prev => prev - 1); };
+
+            const handleSubmit = () => {
+                let correctAns = 0;
+                shuffledQuestions.forEach(q => {
+                    const userAns = answers[q.id];
+                    if (userAns && userAns.statement === q.correctStatement && userAns.reasonIdx === q.correctReasonIndex) correctAns++;
+                });
+
+                if (correctAns === shuffledQuestions.length) playSfx('correct');
+                else playSfx('incorrect');
+
+                setScoreDetails(correctAns);
+                setStep('feedback');
+            };
+
+            const handleRetry = () => { setAnswers({}); setCurrentQIndex(0); setScoreDetails(0); setStep('quiz'); };
+            const handleProceed = () => { for(let i = 0; i < scoreDetails; i++) { if (onCorrect) onCorrect(); } onComplete(); };
+
+            if (step === 'feedback') {
+                return (
+                    <div className="flex flex-col h-full w-full max-w-5xl mx-auto pb-4 animate-fade-in justify-center">
+                        
+                        <div className="bg-white/95 p-8 md:p-10 xl:p-14 rounded-3xl shadow-xl border-4 border-purple-300 text-center mt-4 backdrop-blur-md">
+                            <Icons.Award className="w-20 h-20 xl:w-28 xl:h-28 text-purple-500 mx-auto animate-bounce-slow mb-3" />
+                            <h3 className="text-3xl xl:text-5xl font-black text-gray-800 mb-3 xl:mb-5">Analisis Piktogram</h3>
+                            <p className="text-xl xl:text-3xl font-bold text-gray-600 mb-8 xl:mb-12">Kamu menjawab <span className="text-purple-600 text-4xl xl:text-6xl mx-2">{scoreDetails}</span> dari {shuffledQuestions.length} kasus dengan sempurna!</p>
+                            
+                            <div className="space-y-4 xl:space-y-6 text-left max-h-[40vh] overflow-y-auto custom-scrollbar pr-3 mb-8 xl:mb-10">
+                                {shuffledQuestions.map((q) => {
+                                    const userAns = answers[q.id];
+                                    const isCorrect = userAns?.statement === q.correctStatement && userAns?.reasonIdx === q.correctReasonIndex;
+
+                                    return (
+                                        <div key={q.id} className={`p-4 xl:p-6 rounded-xl border-2 ${isCorrect ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}`}>
+                                            <div className="flex gap-3 xl:gap-5 items-start mb-2 xl:mb-4">
+                                                {isCorrect ? <Icons.CheckCircle className="w-6 h-6 xl:w-8 xl:h-8 text-green-600 flex-shrink-0 mt-0.5" /> : <Icons.X className="w-6 h-6 xl:w-8 xl:h-8 text-red-600 flex-shrink-0 mt-0.5" />}
+                                                <p className="font-bold text-gray-800 text-sm md:text-base xl:text-xl">{q.text}</p>
+                                            </div>
+                                            <div className="ml-9 xl:ml-13 space-y-1 xl:space-y-2 text-sm md:text-base xl:text-xl">
+                                                <p className="text-gray-600">
+                                                    Pernyataan: <span className={userAns?.statement === q.correctStatement ? 'text-green-700 font-bold' : 'text-red-600 font-bold line-through'}>{userAns?.statement || '-'}</span>
+                                                    {!isCorrect && userAns?.statement !== q.correctStatement && <span className="text-green-700 font-bold ml-2">({q.correctStatement})</span>}
+                                                </p>
+                                                <p className="text-gray-600 mt-1">
+                                                    Alasan: <span className={userAns?.reasonIdx === q.correctReasonIndex ? 'text-green-700 font-bold' : 'text-red-600 font-bold line-through'}>{userAns?.reasonIdx !== undefined && !isNaN(userAns?.reasonIdx) ? q.reasonOptions[userAns.reasonIdx] : '-'}</span>
+                                                    {!isCorrect && userAns?.reasonIdx !== q.correctReasonIndex && <span className="text-green-700 font-bold ml-2 block mt-1">✓ {q.reasonOptions[q.correctReasonIndex]}</span>}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row gap-5 justify-center">
+                                {scoreDetails < shuffledQuestions.length && (
+                                    <button onClick={handleRetry} className="bg-yellow-500 hover:bg-yellow-600 text-white font-black py-4 px-10 xl:py-6 xl:px-14 rounded-2xl shadow-[0_6px_0_#ca8a04] active:shadow-none active:translate-y-2 transition-all text-lg md:text-xl xl:text-2xl flex items-center justify-center gap-3">
+                                        <Icons.RefreshCcw className="w-6 h-6 xl:w-8 xl:h-8" /> Cek Kembali
+                                    </button>
+                                )}
+                                <button onClick={handleProceed} className="bg-gradient-to-b from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-black py-4 px-10 xl:py-6 xl:px-14 rounded-2xl shadow-[0_6px_0_#7e22ce] active:shadow-none active:translate-y-2 transition-all text-lg md:text-xl xl:text-2xl flex items-center justify-center gap-3">
+                                    Lanjut Misi 🚀
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="flex flex-col h-full w-full max-w-7xl mx-auto flex-1 min-h-0 bg-white/95 backdrop-blur-md rounded-3xl shadow-xl p-3 md:p-6 border-4 border-purple-300">
+                   <div className="bg-purple-100 text-purple-900 p-3 xl:p-4 rounded-xl text-center font-bold text-sm md:text-base xl:text-xl border-l-4 border-purple-500 shadow-sm flex items-center justify-center gap-3 mb-4 flex-shrink-0">
+                     <Icons.BookOpen className="w-5 h-5 xl:w-7 xl:h-7" /> Pahami nilai simbol di piktogram, lalu tentukan Benar/Salah dan alasannya.
+                   </div>
+
+                   <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden flex flex-col md:flex-row flex-1 min-h-0">
+                       
+                       {/* Panel Kiri: Stimulus */}
+                       <div className="md:w-1/2 bg-purple-50 p-4 md:p-6 xl:p-8 border-b md:border-b-0 md:border-r border-purple-200 flex flex-col min-h-0 overflow-y-auto custom-scrollbar">
+                           <h3 className="font-black text-purple-900 mb-3 xl:mb-5 flex items-center gap-3 text-base md:text-lg xl:text-2xl flex-shrink-0">
+                               {data.stimulusTitle}
+                           </h3>
+                           <div className="text-gray-900 text-sm md:text-base xl:text-lg whitespace-pre-wrap leading-relaxed font-semibold mb-4">
+                               {data.stimulusText}
+                           </div>
+                           
+                           {/* Piktogram Render */}
+                           <div className="bg-white rounded-xl shadow-inner border border-purple-300 p-4 w-full text-sm md:text-base xl:text-xl">
+                               <table className="w-full">
+                                    <tbody>
+                                        {data.stimulusPictogram.map((row, idx) => (
+                                            <tr key={idx} className="border-b border-gray-100 last:border-0">
+                                                <td className="py-3 pr-4 font-bold text-gray-700 w-1/3 border-r border-gray-200">{row.label}</td>
+                                                <td className="py-3 pl-4 text-2xl md:text-3xl xl:text-4xl tracking-widest">
+                                                    {row.icons.map((icon, i) => <span key={i} className="mr-2 drop-shadow-sm">{icon}</span>)}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                               </table>
+                           </div>
+                       </div>
+                       
+                       {/* Panel Kanan: Soal */}
+                       <div className="md:w-1/2 p-4 md:p-6 xl:p-8 flex flex-col min-h-0 bg-white">
+                           <div className="text-xs md:text-sm xl:text-base font-bold text-gray-500 uppercase tracking-wider mb-1 xl:mb-3 flex-shrink-0">Pernyataan {currentQIndex + 1} dari {shuffledQuestions.length}</div>
+                           <p className="font-bold text-gray-900 text-base md:text-lg xl:text-2xl leading-relaxed mb-4 xl:mb-6 flex-shrink-0">{currentQ.text}</p>
+                           
+                           <div className="space-y-4 xl:space-y-6 flex-grow overflow-y-auto custom-scrollbar pr-2">
+                               <div className="space-y-2 xl:space-y-4">
+                                   <label className="block text-sm md:text-base xl:text-xl font-bold text-gray-700">Pernyataan di atas:</label>
+                                   <div className="flex gap-3 xl:gap-5">
+                                       <button onClick={() => handleStatement(currentQ.id, 'Benar')} className={`flex-1 py-3 xl:py-5 rounded-xl border-2 font-bold text-base xl:text-xl transition-all shadow-sm ${answers[currentQ.id]?.statement === 'Benar' ? 'bg-green-500 border-green-600 text-white ring-2 ring-green-300' : 'bg-gray-50 border-gray-300 text-gray-800 hover:border-green-400'}`}>
+                                           Benar
+                                       </button>
+                                       <button onClick={() => handleStatement(currentQ.id, 'Salah')} className={`flex-1 py-3 xl:py-5 rounded-xl border-2 font-bold text-base xl:text-xl transition-all shadow-sm ${answers[currentQ.id]?.statement === 'Salah' ? 'bg-red-500 border-red-600 text-white ring-2 ring-red-300' : 'bg-gray-50 border-gray-300 text-gray-800 hover:border-red-400'}`}>
+                                           Salah
+                                       </button>
+                                   </div>
+                               </div>
+
+                               <div className="space-y-2 xl:space-y-4 pt-3 xl:pt-5 border-t border-gray-200">
+                                   <label className="block text-sm md:text-base xl:text-xl font-bold text-gray-700">Pilih Alasan Matematisnya:</label>
+                                   <div className="relative">
+                                       <select 
+                                            value={answers[currentQ.id]?.reasonIdx !== undefined ? answers[currentQ.id].reasonIdx : ""} 
+                                            onChange={(e) => handleReason(currentQ.id, e.target.value)} 
+                                            className="w-full p-3 md:p-4 xl:p-6 rounded-xl border-2 border-gray-300 bg-gray-50 text-sm md:text-base xl:text-xl font-medium text-gray-900 outline-none focus:border-purple-500 focus:bg-white transition-all appearance-none cursor-pointer shadow-sm"
+                                       >
+                                           <option value="" disabled>-- Klik di sini untuk memilih alasan --</option>
+                                           {currentQ.reasonOptions.map((opt, idx) => (
+                                               <option key={idx} value={idx}>{opt}</option>
+                                           ))}
+                                       </select>
+                                       <div className="absolute right-4 xl:right-6 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                                           <Icons.ArrowRight className="w-4 h-4 xl:w-6 xl:h-6 text-gray-500 rotate-90" />
+                                       </div>
+                                   </div>
+                               </div>
+                           </div>
+
+                           {/* Navigasi Soal */}
+                           <div className="flex justify-between items-center gap-3 mt-4 xl:mt-6 pt-4 border-t border-gray-200 flex-shrink-0">
+                               <button onClick={handlePrev} disabled={currentQIndex === 0} className={`py-3 px-4 xl:py-4 xl:px-6 rounded-2xl font-bold flex items-center gap-2 transition-all text-sm md:text-base xl:text-xl ${currentQIndex === 0 ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white text-gray-800 border-2 border-gray-300 hover:bg-gray-50 shadow-sm'}`}>
+                                   <Icons.ArrowRight className="w-5 h-5 xl:w-7 xl:h-7 rotate-180" /> <span className="hidden sm:inline">Sebelumnya</span>
+                               </button>
+                               
+                               {currentQIndex < shuffledQuestions.length - 1 ? (
+                                   <button onClick={handleNext} disabled={!isCurrentAnswered} className={`py-3 px-6 xl:py-4 xl:px-10 rounded-2xl font-black flex items-center gap-2 transition-all text-sm md:text-base xl:text-xl ${!isCurrentAnswered ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-[0_5px_0_#1e3a8a] active:shadow-none active:translate-y-1'}`}>
+                                       <span className="hidden sm:inline">Selanjutnya</span> <Icons.ArrowRight className="w-5 h-5 xl:w-7 xl:h-7" />
+                                   </button>
+                               ) : (
+                                   <button onClick={handleSubmit} disabled={!isCurrentAnswered} className={`py-3 px-6 xl:py-4 xl:px-10 rounded-2xl font-black flex items-center gap-2 transition-all text-sm md:text-base xl:text-xl ${!isCurrentAnswered ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-gradient-to-b from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white shadow-[0_5px_0_#6b21a8] active:shadow-none active:translate-y-1'}`}>
+                                       <Icons.CheckCircle className="w-5 h-5 xl:w-7 xl:h-7" /> Kumpulkan
+                                   </button>
+                               )}
+                           </div>
+                       </div>
+                   </div>
+                </div>
+            );
+        }
+
+        // --- LEVEL 4: SULAWESI (Paragraf Rumpang) ---
+        function Level4Sulawesi({ onComplete, onCorrect }) {
+            const data = LEVEL_DATA[4];
+            const [droppedWords, setDroppedWords] = useState({}); 
+            const [availableWords, setAvailableWords] = useState([]);
+            const [selectedWord, setSelectedWord] = useState(null);
+            const [dragOverBlank, setDragOverBlank] = useState(null);
+            const [feedbackMsg, setFeedbackMsg] = useState("");
+            const [completed, setCompleted] = useState(false);
+            const [imageError, setImageError] = useState(false);
+
+            useEffect(() => {
+                setAvailableWords(shuffleArray(data.words));
+                setDroppedWords({});
+            }, [data.words]);
+
+            const handleDragStart = (e, word, sourceBlankId = null) => {
+                e.dataTransfer.setData("word", JSON.stringify(word));
+                e.dataTransfer.setData("source", sourceBlankId || "pool");
+            };
+
+            const handleDropOnBlank = (e, blankId) => {
+                e.preventDefault();
+                setDragOverBlank(null);
+                const wordData = e.dataTransfer.getData("word");
+                const source = e.dataTransfer.getData("source");
+                
+                if (wordData) {
+                    const word = JSON.parse(wordData);
+                    setAvailableWords(prev => prev.filter(w => w.id !== word.id));
+                    setDroppedWords(prev => {
+                        const newDropped = { ...prev };
+                        if (source !== "pool" && source !== blankId) delete newDropped[source];
+                        if (newDropped[blankId]) setAvailableWords(avail => [...avail, newDropped[blankId]]);
+                        newDropped[blankId] = word;
+                        return newDropped;
+                    });
+                    setFeedbackMsg("");
+                    setSelectedWord(null);
+                }
+            };
+
+            const handleDropOnPool = (e) => {
+                e.preventDefault();
+                const wordData = e.dataTransfer.getData("word");
+                const source = e.dataTransfer.getData("source");
+                
+                if (wordData && source !== "pool") {
+                    const word = JSON.parse(wordData);
+                    setDroppedWords(prev => {
+                        const newDropped = { ...prev };
+                        delete newDropped[source];
+                        return newDropped;
+                    });
+                    setAvailableWords(prev => {
+                        if (!prev.find(w => w.id === word.id)) return [...prev, word];
+                        return prev;
+                    });
+                    setFeedbackMsg("");
+                }
+            };
+            
+            const handleWordClick = (word) => { setSelectedWord(selectedWord?.id === word.id ? null : word); };
+
+            const handleBlankClick = (blankId) => {
+                if (selectedWord) {
+                    if (droppedWords[blankId]) setAvailableWords(prev => [...prev, droppedWords[blankId]]);
+                    setDroppedWords(prev => ({...prev, [blankId]: selectedWord}));
+                    setAvailableWords(prev => prev.filter(w => w.id !== selectedWord.id));
+                    setSelectedWord(null);
+                    setFeedbackMsg("");
+                } else if (droppedWords[blankId]) {
+                    setAvailableWords(prev => [...prev, droppedWords[blankId]]);
+                    setDroppedWords(prev => {
+                        const newDropped = {...prev};
+                        delete newDropped[blankId];
+                        return newDropped;
+                    });
+                    setFeedbackMsg("");
+                }
+            };
+
+            const handleCheckAnswer = () => {
+                let isAllCorrect = true;
+                let totalBlanks = 0;
+                let filledBlanks = 0;
+
+                data.paragraphs.forEach(p => {
+                    p.sentences.forEach(s => {
+                        totalBlanks++;
+                        const dropped = droppedWords[s.blankId];
+                        if (dropped) {
+                            filledBlanks++;
+                            if (dropped.text !== s.correct) isAllCorrect = false;
+                        } else {
+                            isAllCorrect = false;
+                        }
+                    });
+                });
+
+                if (filledBlanks < totalBlanks) {
+                    setFeedbackMsg("Isi semua bagian rumpang laporan terlebih dahulu ya!");
+                    return;
+                }
+
+                if (isAllCorrect) {
+                    playSfx('correct');
+                    for(let i=0; i<5; i++) { if (onCorrect) onCorrect(); }
+                    setCompleted(true);
+                } else {
+                    playSfx('incorrect');
+                    setFeedbackMsg("Masih ada kata atau angka yang keliru. Klik kotak jawaban untuk mengembalikannya, lalu coba lagi!");
+                }
+            };
+
+            return (
+                <div className="flex flex-col h-full w-full max-w-5xl mx-auto flex-1 min-h-0 bg-white/95 backdrop-blur-md rounded-3xl shadow-xl p-3 md:p-6 border-4 border-rose-300">
+                   {!completed ? (
+                       <div className="flex flex-col flex-1 min-h-0 overflow-hidden bg-white rounded-2xl border border-gray-200">
+                           
+                           <div className="w-full p-4 md:p-6 xl:p-8 flex flex-col flex-1 min-h-0">
+                               <div className="bg-rose-50 border-l-4 border-rose-500 p-4 rounded-r-xl mb-4 text-rose-900 font-bold text-sm md:text-base whitespace-pre-wrap">
+                                   {data.stimulusText}
+                               </div>
+
+                               {/* Area Gambar / Diagram Batang Misi 4 */}
+                               <div className="mb-6 flex justify-center w-full">
+                                   {!imageError ? (
+                                       <img 
+                                            src="https://gemini.google.com/share/25900292366a" 
+                                            alt="Diagram Batang Ekstrakurikuler" 
+                                            className="max-w-full h-auto rounded-xl shadow-md border-2 border-rose-200"
+                                            onError={() => setImageError(true)}
+                                       />
+                                   ) : (
+                                       <div className="w-full max-w-md bg-white p-4 rounded-2xl border-2 border-rose-200 shadow-sm flex flex-col animate-fade-in">
+                                            <h5 className="text-center font-black text-rose-800 mb-4 text-sm md:text-base">Diagram Ekstrakurikuler Kelas 5</h5>
+                                            <div className="flex items-end justify-around h-40 gap-2 border-b-2 border-l-2 border-gray-400 p-2 pb-0 relative">
+                                                {/* Garis bantu horizontal */}
+                                                <div className="absolute w-full h-[1px] bg-gray-200 bottom-[20%] z-0"></div>
+                                                <div className="absolute w-full h-[1px] bg-gray-200 bottom-[40%] z-0"></div>
+                                                <div className="absolute w-full h-[1px] bg-gray-200 bottom-[60%] z-0"></div>
+                                                <div className="absolute w-full h-[1px] bg-gray-200 bottom-[80%] z-0"></div>
+                                                <div className="absolute w-full h-[1px] bg-gray-200 bottom-[100%] z-0"></div>
+                                                
+                                                {/* Batang Diagram */}
+                                                <div className="flex flex-col items-center w-1/4 h-full justify-end z-10 group cursor-pointer hover:-translate-y-1 transition-transform">
+                                                    <span className="text-xs font-black text-blue-700 mb-1 bg-white px-1 rounded">25</span>
+                                                    <div className="w-3/4 bg-blue-500 rounded-t-md shadow-sm border-2 border-blue-600 group-hover:bg-blue-400" style={{height: '100%'}}></div>
+                                                </div>
+                                                <div className="flex flex-col items-center w-1/4 h-full justify-end z-10 group cursor-pointer hover:-translate-y-1 transition-transform">
+                                                    <span className="text-xs font-black text-green-700 mb-1 bg-white px-1 rounded">15</span>
+                                                    <div className="w-3/4 bg-green-500 rounded-t-md shadow-sm border-2 border-green-600 group-hover:bg-green-400" style={{height: '60%'}}></div>
+                                                </div>
+                                                <div className="flex flex-col items-center w-1/4 h-full justify-end z-10 group cursor-pointer hover:-translate-y-1 transition-transform">
+                                                    <span className="text-xs font-black text-yellow-700 mb-1 bg-white px-1 rounded">10</span>
+                                                    <div className="w-3/4 bg-yellow-400 rounded-t-md shadow-sm border-2 border-yellow-500 group-hover:bg-yellow-300" style={{height: '40%'}}></div>
+                                                </div>
+                                                <div className="flex flex-col items-center w-1/4 h-full justify-end z-10 group cursor-pointer hover:-translate-y-1 transition-transform">
+                                                    <span className="text-xs font-black text-red-700 mb-1 bg-white px-1 rounded">5</span>
+                                                    <div className="w-3/4 bg-red-500 rounded-t-md shadow-sm border-2 border-red-600 group-hover:bg-red-400" style={{height: '20%'}}></div>
+                                                </div>
+                                            </div>
+                                            <div className="flex justify-around mt-3 text-[10px] md:text-xs font-bold text-gray-700 text-center uppercase tracking-wider">
+                                                <div className="w-1/4 text-blue-900">Pramuka</div>
+                                                <div className="w-1/4 text-green-900">Futsal</div>
+                                                <div className="w-1/4 text-yellow-900">Tari</div>
+                                                <div className="w-1/4 text-red-900">Melukis</div>
+                                            </div>
+                                       </div>
+                                   )}
+                               </div>
+
+                               <div className="bg-rose-100 p-4 md:p-6 rounded-xl mb-4 text-center border-2 border-dashed border-rose-300 flex-shrink-0"
+                                    onDragOver={(e) => { e.preventDefault(); }}
+                                    onDrop={handleDropOnPool}
+                               >
+                                   <p className="text-sm md:text-base xl:text-xl font-bold text-rose-800 mb-3">PILIHAN KATA/ANGKA (Tarik atau Klik):</p>
+                                   <div className="flex flex-wrap gap-2 justify-center">
+                                       {availableWords.map(word => (
+                                            <div 
+                                                key={word.id} draggable onDragStart={(e) => handleDragStart(e, word)} onClick={() => handleWordClick(word)}
+                                                className={`px-4 py-2 rounded-lg border-2 font-bold text-sm md:text-base cursor-grab active:cursor-grabbing shadow-sm transition-all select-none ${selectedWord?.id === word.id ? 'bg-rose-500 border-rose-600 text-white scale-105' : 'bg-white text-gray-700 border-rose-300 hover:border-rose-400 hover:bg-rose-50'}`}
+                                            >
+                                                {word.text}
+                                            </div>
+                                       ))}
+                                       {availableWords.length === 0 && <span className="text-sm text-gray-500 italic mt-2">Semua kata sudah disisipkan.</span>}
+                                   </div>
+                               </div>
+
+                               <div className="flex-grow overflow-y-auto pr-2 custom-scrollbar space-y-4">
+                                    {data.paragraphs.map(p => (
+                                        <div key={p.id} className="p-4 xl:p-6 rounded-2xl border border-gray-200 bg-gray-50 shadow-sm">
+                                            {p.title && <h4 className="text-lg xl:text-xl font-black text-rose-900 mb-3 xl:mb-5 border-b pb-2">{p.title}</h4>}
+                                            <p className="text-base md:text-lg xl:text-2xl leading-[2.5] xl:leading-[2.8] text-gray-800 font-medium">
+                                                {p.sentences.map(s => (
+                                                    <span key={s.id}>
+                                                        {s.before}
+                                                        <span 
+                                                            onClick={() => handleBlankClick(s.blankId)} onDragOver={(e) => { e.preventDefault(); setDragOverBlank(s.blankId); }} onDragLeave={() => setDragOverBlank(null)} onDrop={(e) => handleDropOnBlank(e, s.blankId)}
+                                                            className={`inline-block mx-1 min-w-[120px] h-8 md:h-10 text-center align-middle rounded-lg border-b-4 cursor-pointer transition-all ${
+                                                              dragOverBlank === s.blankId ? 'bg-blue-100 border-blue-400' : 'bg-white border-gray-300 border-dashed'
+                                                            } ${droppedWords[s.blankId] ? 'bg-rose-500 border-rose-600 text-white font-bold shadow-inner' : ''}`}
+                                                        >
+                                                            {droppedWords[s.blankId] ? droppedWords[s.blankId].text : ''}
+                                                        </span>
+                                                        {s.after}
+                                                    </span>
+                                                ))}
+                                            </p>
+                                        </div>
+                                    ))}
+                               </div>
+
+                               <div className="mt-5 flex flex-col items-center flex-shrink-0">
+                                   {feedbackMsg && <p className="text-red-600 font-bold text-sm md:text-base xl:text-xl mb-3 bg-red-100 px-5 py-3 rounded-xl border border-red-200 text-center w-full">{feedbackMsg}</p>}
+                                   <button onClick={handleCheckAnswer} className="bg-gradient-to-b from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white font-black py-3 px-10 xl:py-4 xl:px-14 rounded-2xl shadow-[0_6px_0_#9f1239] active:shadow-none active:translate-y-2 transition-all text-base md:text-lg xl:text-2xl flex items-center justify-center gap-3 w-full md:w-auto">
+                                       <Icons.CheckCircle className="w-6 h-6" /> Periksa Laporan Data
+                                   </button>
+                               </div>
+                           </div>
+                       </div>
+                   ) : (
+                       <div className="bg-white/95 p-8 md:p-12 xl:p-16 rounded-3xl shadow-xl text-center space-y-6 border border-rose-200 max-w-4xl mx-auto animate-fade-in my-auto">
+                         <div className="w-20 h-20 xl:w-28 xl:h-28 bg-rose-100 rounded-full flex items-center justify-center mx-auto text-4xl xl:text-6xl shadow-inner border-4 border-rose-300">📊</div>
+                         <div>
+                             <h3 className="text-2xl md:text-4xl xl:text-5xl font-black text-rose-900 uppercase tracking-wider mb-4">Laporan Akurat!</h3>
+                             <p className="text-lg md:text-xl xl:text-3xl font-bold text-gray-700 leading-relaxed">Kamu berhasil membaca diagram batang dan menyajikannya dalam bentuk laporan paragraf.</p>
+                         </div>
+                         <button onClick={onComplete} className="bg-gradient-to-b from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white font-black w-full py-5 xl:py-6 text-xl xl:text-3xl rounded-2xl shadow-[0_6px_0_#9f1239] active:shadow-none active:translate-y-2 transition-all mt-4">Lanjut Misi Terakhir 🚀</button>
+                       </div>
+                   )}
+                </div>
+            );
+        }
+
+        // --- LEVEL 5: PROYEK (Markas Utama) ---
+        function Level5Papua({ onComplete, saveRef, saveData }) {
+            const data = LEVEL_DATA[5];
+            const [counts, setCounts] = useState({ bakso: "", soto: "", mie: "", kuning: "", pecel: "" });
+            const [analysis, setAnalysis] = useState({ q1: "", q2: "", q3: "" });
+            const [format, setFormat] = useState("");
+            const [plan, setPlan] = useState("");
+            const [reflection, setReflection] = useState("");
+            const [step, setStep] = useState('project');
+
+            const handleCount = (key, val) => {
+                if (val === "" || /^\d+$/.test(val)) {
+                    setCounts(prev => ({ ...prev, [key]: val }));
+                }
+            };
+
+            const handleSubmitProject = () => { 
+                const bakso = parseInt(counts.bakso)||0;
+                const soto = parseInt(counts.soto)||0;
+                const mie = parseInt(counts.mie)||0;
+                const kuning = parseInt(counts.kuning)||0;
+                const pecel = parseInt(counts.pecel)||0;
+                const total = bakso + soto + mie + kuning + pecel;
+                
+                if (total !== 20) {
+                    alert(`Total responden harus tepat 20 orang Detektif! Saat ini total datamu: ${total} orang.`);
+                    return;
+                }
+
+                // Logika Validasi Analisis Data Otomatis berdasarkan angka yang diisi siswa
+                const dict = { "Bakso": bakso, "Soto": soto, "Mie Goreng": mie, "Nasi Kuning": kuning, "Nasi Pecel": pecel };
+                const values = Object.values(dict);
+                const maxVal = Math.max(...values);
+                const minVal = Math.min(...values);
+
+                const maxFoods = Object.keys(dict).filter(k => dict[k] === maxVal);
+                const minFoods = Object.keys(dict).filter(k => dict[k] === minVal);
+                const diff = maxVal - minVal;
+
+                if (!analysis.q1 || !analysis.q2 || analysis.q3 === "") {
+                    alert("Jawab dulu ke-3 pertanyaan analisis hasil surveinya ya, Detektif!");
+                    return;
+                }
+                if (!maxFoods.includes(analysis.q1)) {
+                    alert("Coba periksa lagi jawabanmu untuk makanan yang paling BANYAK disukai. Pastikan cocok dengan tabel datamu ya!");
+                    return;
+                }
+                if (!minFoods.includes(analysis.q2)) {
+                    alert("Coba periksa lagi jawabanmu untuk makanan yang paling SEDIKIT disukai. Pastikan cocok dengan tabel datamu ya!");
+                    return;
+                }
+                if (parseInt(analysis.q3) !== diff) {
+                    alert("Hitungan selisihmu sepertinya keliru. Ingat: Angka pemilih Terbesar dikurangi angka pemilih Terkecil dari tabelmu.");
+                    return;
+                }
+
+                if (!format || !plan) {
+                    alert("Wah, format penyajian dan alasan belum diisi. Lengkapi dulu ya!");
+                    return;
+                }
+
+                playSfx('correct');
+                saveData('final_project', {
+                    'Data Survei': `Bakso:${counts.bakso}, Soto:${counts.soto}, Mie:${counts.mie}, N.Kuning:${counts.kuning}, N.Pecel:${counts.pecel}`, 
+                    'Penyajian': format, 
+                    'Alasan': plan
+                }); 
+                setStep('reflection');
+            };
+            
+            const handleFinish = () => {
+                saveRef(reflection); 
+                onComplete();
+            };
+
+            if (step === 'reflection') {
+                return (
+                    <div className="flex flex-col h-full w-full justify-center">
+                        <ReflectionSection question={data.reflection} value={reflection} onChange={setReflection} onNext={handleFinish} />
+                    </div>
+                );
+            }
+
+            const currentTotal = (parseInt(counts.bakso)||0) + (parseInt(counts.soto)||0) + (parseInt(counts.mie)||0) + (parseInt(counts.kuning)||0) + (parseInt(counts.pecel)||0);
+
+            return (
+                <div className="flex flex-col h-full w-full max-w-7xl mx-auto flex-1 min-h-0 pb-4 bg-white/95 backdrop-blur-md rounded-3xl p-3 md:p-6 border-4 border-blue-300">
+                   <div className="bg-blue-100 text-blue-900 p-3 xl:p-4 rounded-xl text-center font-bold text-sm md:text-base xl:text-xl border-l-4 border-blue-500 shadow-sm flex items-center justify-center gap-3 mb-4 flex-shrink-0">
+                     <Icons.BarChart className="w-5 h-5 xl:w-7 xl:h-7 text-blue-600" /> Lakukan survei makanan favorit dan laporkan datanya!
+                   </div>
+
+                   <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col md:flex-row flex-1 min-h-0">
+                        {/* Panel Kiri: Cerita */}
+                        <div className="md:w-5/12 bg-blue-50 p-4 md:p-6 border-b md:border-b-0 md:border-r border-blue-200 flex flex-col min-h-0 overflow-y-auto custom-scrollbar">
+                            <h3 className="font-black text-blue-900 mb-3 flex items-center gap-3 text-base md:text-lg xl:text-2xl flex-shrink-0">
+                                {data.stimulusTitle}
+                            </h3>
+                            <div className="text-gray-800 text-sm md:text-base whitespace-pre-wrap leading-relaxed font-medium bg-white p-4 rounded-xl border border-blue-100 shadow-sm mb-6 flex-1">
+                                {data.stimulusText}
+                            </div>
+
+                            <div className="bg-yellow-100 p-5 rounded-2xl border-2 border-yellow-300 mt-auto shadow-sm flex-shrink-0">
+                                <h4 className="font-black text-yellow-900 mb-2 text-sm md:text-base">{data.tasks.t4.title}</h4>
+                                <p className="text-xs md:text-sm text-yellow-800 font-bold leading-relaxed">{data.tasks.t4.desc}</p>
+                            </div>
+                        </div>
+
+                        {/* Panel Kanan: Form */}
+                        <div className="md:w-7/12 p-4 md:p-6 flex flex-col min-h-0">
+                            <div className="space-y-4 xl:space-y-6 flex-grow overflow-y-auto custom-scrollbar pr-2">
+                                {/* Langkah 1: Input Data */}
+                                <div>
+                                    <div className="border-b-2 border-gray-100 pb-2 mb-3">
+                                        <h4 className="font-black text-gray-800 text-base md:text-lg">{data.tasks.t1.title}</h4>
+                                        <p className="text-xs md:text-sm font-bold text-gray-500 mt-1">{data.tasks.t1.desc}</p>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-xl border-2 border-gray-200">
+                                            <span className="font-bold text-gray-700 w-1/2 text-sm md:text-base">Bakso</span>
+                                            <input type="number" placeholder="0" className="w-1/2 p-2 rounded-lg border-2 border-gray-300 outline-none focus:border-blue-400 text-center font-bold text-sm md:text-base" value={counts.bakso} onChange={(e) => handleCount('bakso', e.target.value)} />
+                                        </div>
+                                        <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-xl border-2 border-gray-200">
+                                            <span className="font-bold text-gray-700 w-1/2 text-sm md:text-base">Soto</span>
+                                            <input type="number" placeholder="0" className="w-1/2 p-2 rounded-lg border-2 border-gray-300 outline-none focus:border-blue-400 text-center font-bold text-sm md:text-base" value={counts.soto} onChange={(e) => handleCount('soto', e.target.value)} />
+                                        </div>
+                                        <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-xl border-2 border-gray-200">
+                                            <span className="font-bold text-gray-700 w-1/2 text-sm md:text-base">Mie Goreng</span>
+                                            <input type="number" placeholder="0" className="w-1/2 p-2 rounded-lg border-2 border-gray-300 outline-none focus:border-blue-400 text-center font-bold text-sm md:text-base" value={counts.mie} onChange={(e) => handleCount('mie', e.target.value)} />
+                                        </div>
+                                        <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-xl border-2 border-gray-200">
+                                            <span className="font-bold text-gray-700 w-1/2 text-sm md:text-base">Nasi Kuning</span>
+                                            <input type="number" placeholder="0" className="w-1/2 p-2 rounded-lg border-2 border-gray-300 outline-none focus:border-blue-400 text-center font-bold text-sm md:text-base" value={counts.kuning} onChange={(e) => handleCount('kuning', e.target.value)} />
+                                        </div>
+                                        <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-xl border-2 border-gray-200 col-span-2">
+                                            <span className="font-bold text-gray-700 w-1/2 text-sm md:text-base">Nasi Pecel</span>
+                                            <input type="number" placeholder="0" className="w-1/2 p-2 rounded-lg border-2 border-gray-300 outline-none focus:border-blue-400 text-center font-bold text-sm md:text-base" value={counts.pecel} onChange={(e) => handleCount('pecel', e.target.value)} />
+                                        </div>
+                                    </div>
+                                    <div className="mt-3 text-right bg-blue-50 py-2 px-4 rounded-lg inline-block float-right border border-blue-200">
+                                        <span className={`font-black text-sm md:text-base ${currentTotal === 20 ? 'text-green-600' : 'text-red-500'}`}>Total Responden: {currentTotal} / 20</span>
+                                    </div>
+                                    <div className="clear-both"></div>
+                                </div>
+
+                                {/* Langkah 2: Analisis Data */}
+                                <div className="mt-6 pt-4 border-t-2 border-blue-100">
+                                    <div className="border-b-2 border-gray-100 pb-2 mb-3">
+                                        <h4 className="font-black text-gray-800 text-base md:text-lg">{data.tasks.t2.title}</h4>
+                                        <p className="text-xs md:text-sm font-bold text-gray-500 mt-1">{data.tasks.t2.desc}</p>
+                                    </div>
+                                    <div className="space-y-3">
+                                        <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
+                                            <label className="block text-sm md:text-base font-bold text-gray-700 mb-2">{data.tasks.t2.q1}</label>
+                                            <select value={analysis.q1} onChange={(e) => setAnalysis({...analysis, q1: e.target.value})} className="w-full p-2 rounded-lg border-2 border-gray-300 outline-none focus:border-blue-400 font-medium text-sm md:text-base bg-white cursor-pointer shadow-sm">
+                                                <option value="" disabled>-- Pilih Makanan --</option>
+                                                <option value="Bakso">Bakso</option>
+                                                <option value="Soto">Soto</option>
+                                                <option value="Mie Goreng">Mie Goreng</option>
+                                                <option value="Nasi Kuning">Nasi Kuning</option>
+                                                <option value="Nasi Pecel">Nasi Pecel</option>
+                                            </select>
+                                        </div>
+                                        <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
+                                            <label className="block text-sm md:text-base font-bold text-gray-700 mb-2">{data.tasks.t2.q2}</label>
+                                            <select value={analysis.q2} onChange={(e) => setAnalysis({...analysis, q2: e.target.value})} className="w-full p-2 rounded-lg border-2 border-gray-300 outline-none focus:border-blue-400 font-medium text-sm md:text-base bg-white cursor-pointer shadow-sm">
+                                                <option value="" disabled>-- Pilih Makanan --</option>
+                                                <option value="Bakso">Bakso</option>
+                                                <option value="Soto">Soto</option>
+                                                <option value="Mie Goreng">Mie Goreng</option>
+                                                <option value="Nasi Kuning">Nasi Kuning</option>
+                                                <option value="Nasi Pecel">Nasi Pecel</option>
+                                            </select>
+                                        </div>
+                                        <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
+                                            <label className="block text-sm md:text-base font-bold text-gray-700 mb-2">{data.tasks.t2.q3}</label>
+                                            <input type="number" value={analysis.q3} onChange={(e) => setAnalysis({...analysis, q3: e.target.value})} placeholder="Masukkan angka selisihnya..." className="w-full p-2 rounded-lg border-2 border-gray-300 outline-none focus:border-blue-400 font-medium text-sm md:text-base bg-white shadow-sm" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Langkah 3: Penyajian */}
+                                <div className="mt-6 pt-4 border-t-2 border-blue-100">
+                                    <div className="border-b-2 border-gray-100 pb-2 mb-3">
+                                        <h4 className="font-black text-gray-800 text-base md:text-lg">{data.tasks.t3.title}</h4>
+                                        <p className="text-xs md:text-sm font-bold text-gray-500 mt-1">{data.tasks.t3.desc}</p>
+                                    </div>
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+                                        {data.tasks.t3.options.map(opt => (
+                                            <button key={opt} onClick={() => setFormat(opt)} className={`py-2 px-1 rounded-lg border-2 font-bold text-xs md:text-sm transition-all ${format === opt ? 'border-blue-500 bg-blue-50 text-blue-800 shadow-sm ring-2 ring-blue-300' : 'border-gray-200 bg-gray-50 text-gray-600 hover:border-blue-300'}`}>
+                                                {opt}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div className="bg-sky-50 border border-sky-200 p-3 rounded-xl mb-3">
+                                        <p className="text-xs font-bold text-sky-800">{data.tasks.t3.requirements}</p>
+                                    </div>
+                                    <textarea rows="3" placeholder={data.tasks.t3.planLabel} className="w-full p-3 rounded-xl border-2 border-gray-300 bg-gray-50 outline-none focus:border-blue-400 focus:bg-white transition-all text-sm font-medium" value={plan} onChange={(e) => setPlan(e.target.value)} />
+                                </div>
+                            </div>
+
+                            <div className="pt-4 flex justify-end flex-shrink-0 border-t border-gray-100 mt-2">
+                                <button onClick={handleSubmitProject} className="bg-blue-600 hover:bg-blue-700 text-white font-black py-3 px-8 rounded-2xl text-base md:text-lg shadow-[0_4px_0_#1e40af] active:shadow-none active:translate-y-1 transition-all flex items-center justify-center gap-2 w-full md:w-auto">
+                                    <Icons.Save className="w-5 h-5" /> Periksa & Simpan Laporan
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // --- END SCREEN ---
+        function EndScreen({ userData, correctCount, onRestart, playerName, playerSchool }) {
+            const [isSaving, setIsSaving] = useState(false);
+            const [saveStatus, setSaveStatus] = useState("idle"); 
+
+            const handleSaveToGoogleSheets = async () => {
+                if(!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("MASUKKAN_URL")) return alert("URL Google Script belum dipasang.");
+                setIsSaving(true);
+                
+                const payload = {
+                    nama: playerName, sekolah: playerSchool, skor: correctCount, benar: correctCount,
+                    ref1: "-", ref2: "-", ref3: "-", ref4: "-",
+                    papua_masalah: userData.final_project?.['Data Survei'] || "-",
+                    papua_solusi: userData.final_project ? `${userData.final_project['Penyajian']} - ${userData.final_project['Alasan']}` : "-",
+                    papua_kampanye: "-",
+                };
+                
+                try {
+                    await fetch(GOOGLE_SCRIPT_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+                    setSaveStatus("success");
+                } catch (error) { setSaveStatus("error"); } finally { setIsSaving(false); }
+            };
+
+            return (
+                <div className="flex flex-col items-center justify-center gap-6 xl:gap-10 animate-fade-in w-full flex-1">
+                  <div className="text-center bg-white/95 backdrop-blur-sm p-6 md:p-10 rounded-3xl shadow-lg w-full max-w-2xl border-4 border-amber-300">
+                    <div className="w-24 h-24 md:w-32 md:h-32 bg-amber-400 rounded-full flex items-center justify-center mx-auto text-5xl md:text-7xl shadow-inner border-4 border-white animate-bounce-slow">
+                        🏅
+                    </div>
+                    <h2 className="text-3xl md:text-5xl font-black text-amber-900 mt-4">MISI SELESAI!</h2>
+                    <p className="text-base md:text-xl font-bold mt-2">{playerName}, <span className="text-blue-700">Detektif Data Terhebat</span></p>
+                    <div className="text-lg md:text-2xl font-black text-gray-600 mt-6">
+                        Poin Analisis Data <br/><span className="text-5xl md:text-7xl text-amber-500 text-outline inline-block mt-2">{correctCount} / 21</span>
+                    </div>
+                  </div>
+
+                  <div className="w-full max-w-2xl bg-white/95 backdrop-blur-sm p-6 md:p-8 rounded-3xl shadow-xl border-4 border-blue-300 relative text-base">
+                    <div className="text-center border-b-2 border-gray-100 pb-4 mb-4">
+                      <h3 className="font-black text-xl md:text-2xl text-blue-900">BERKAS DETEKTIF</h3>
+                      <p className="text-gray-600 font-bold text-sm md:text-base mt-1">{playerSchool}</p>
+                    </div>
+                    <div className="space-y-3 max-h-48 overflow-y-auto pr-3 custom-scrollbar text-sm md:text-base">
+                      <p className="bg-sky-50 p-4 rounded-xl border border-sky-100"><b className="text-sky-900 block mb-1">Hasil Survei Makanan:</b> "{userData.final_project ? userData.final_project['Data Survei'] : '-'}"</p>
+                      <p className="bg-yellow-50 p-4 rounded-xl border border-yellow-100"><b className="text-yellow-900 block mb-1">Penyajian Data & Alasan:</b> "{userData.final_project ? `${userData.final_project['Penyajian']} - ${userData.final_project['Alasan']}` : '-'}"</p>
+                      <p className="bg-green-50 p-4 rounded-xl border border-green-100"><b className="text-green-900 block mb-1">Pemikiran Detektif:</b> "{userData.ref5 || '-'}"</p>
+                    </div>
+                  </div>
+
+                  <div className="w-full max-w-2xl space-y-4 mt-2">
+                    {saveStatus === 'idle' && <button onClick={handleSaveToGoogleSheets} disabled={isSaving} className="bg-blue-600 hover:bg-blue-700 text-white font-black w-full py-4 rounded-2xl flex items-center justify-center gap-3 text-lg shadow-[0_4px_0_#1e40af] active:shadow-none active:translate-y-1 transition-all">{isSaving ? "Menyimpan Laporan..." : <><Icons.Save className="w-6 h-6"/> Serahkan ke Markas Guru</>}</button>}
+                    {saveStatus === 'success' && <div className="bg-green-100 text-green-800 p-4 rounded-2xl text-center font-bold text-lg border-2 border-green-300">Laporan Diterima! ✅</div>}
+                    {saveStatus === 'error' && <div className="bg-red-100 text-red-800 p-4 rounded-2xl text-center font-bold text-lg border-2 border-red-300">Koneksi Gagal. <button onClick={()=>setSaveStatus('idle')} className="underline text-red-600 ml-2">Coba lagi</button></div>}
+                    <button onClick={onRestart} className="bg-green-500 hover:bg-green-600 text-white font-black w-full py-4 rounded-2xl flex items-center justify-center gap-3 text-lg shadow-[0_4px_0_#166534] active:shadow-none active:translate-y-1 transition-all"><Icons.RefreshCcw className="w-6 h-6"/> Analisis Kasus Baru</button>
+                  </div>
+                </div>
+            );
+        }
+
+        function ReflectionSection({ question, value, onChange, onNext }) {
+            return (
+                <div className="bg-white/95 p-8 md:p-12 xl:p-16 rounded-3xl shadow-xl text-center space-y-6 border border-blue-200 w-full max-w-4xl mx-auto animate-fade-in my-auto border-4 border-amber-300">
+                  <div className="w-20 h-20 xl:w-28 xl:h-28 bg-blue-100 rounded-full flex items-center justify-center mx-auto text-4xl xl:text-6xl shadow-inner border-4 border-white">🤔</div>
+                  <div>
+                    <h3 className="text-2xl md:text-3xl xl:text-4xl font-black text-blue-900 mb-3 uppercase tracking-wider">Pemikiran Detektif</h3>
+                    <p className="text-lg md:text-xl font-bold text-gray-700 leading-relaxed whitespace-pre-wrap">{question}</p>
+                  </div>
+                  <textarea value={value} onChange={(e) => onChange(e.target.value)} className="w-full p-5 border-2 rounded-2xl text-lg bg-blue-50 outline-none focus:border-blue-500 h-40 text-gray-800 font-medium transition-colors" placeholder="Tuliskan pendapatmu di sini..." />
+                  <button onClick={onNext} disabled={value.length < 5} className="bg-green-600 hover:bg-green-700 text-white font-black w-full py-4 text-xl rounded-2xl disabled:opacity-50 shadow-[0_5px_0_#166534] active:shadow-none active:translate-y-1 transition-all disabled:shadow-none disabled:translate-y-0 disabled:cursor-not-allowed">Akhiri Investigasi 🚀</button>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<PetualanganBhinneka />);
+    </script>
+</body>
+</html>
